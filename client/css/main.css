@@ -1,0 +1,295 @@
+:root {
+  --bg:          #1a1a2e;
+  --surface:     #16213e;
+  --surface2:    #0f3460;
+  --surface3:    #1e2a4a;
+  --accent:      #c8a84b;
+  --accent2:     #7a5af8;
+  --text:        #e8e0d0;
+  --text-muted:  #7a7a8a;
+  --danger:      #c0392b;
+  --success:     #5aaad4;
+  --tab-height:  58px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Screens ─────────────────────────────────────── */
+.screen { display: none; height: 100dvh; flex-direction: column; }
+.screen.active { display: flex; }
+
+/* ── Connect Screen ──────────────────────────────── */
+.connect-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
+  gap: 40px;
+}
+
+.connect-logo { text-align: center; }
+.logo-emblem { font-size: 48px; color: var(--accent); line-height: 1; margin-bottom: 8px; }
+.connect-logo h1 { font-size: 36px; font-weight: 300; letter-spacing: 0.2em; color: var(--text); }
+.connect-tagline { color: var(--text-muted); font-style: italic; margin-top: 4px; }
+
+.connect-form { width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 12px; }
+.connect-form label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+
+/* ── Main Screen ─────────────────────────────────── */
+#screen-main { flex-direction: column; }
+
+.tab-contents {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.tab-content {
+  display: none;
+  height: 100%;
+  overflow-y: auto;
+  padding: 16px 16px calc(8px + var(--safe-bottom));
+  -webkit-overflow-scrolling: touch;
+}
+.tab-content.active { display: block; }
+
+/* ── Tab Bar ─────────────────────────────────────── */
+.tab-bar {
+  display: flex;
+  height: calc(var(--tab-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--surface2);
+  flex-shrink: 0;
+}
+
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 8px 0 0;
+}
+.tab-btn.active { color: var(--accent); }
+.tab-btn:hover { color: var(--text); }
+
+/* ── Inputs & Buttons ────────────────────────────── */
+.input {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 15px;
+  padding: 12px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--accent); }
+
+.btn {
+  background: var(--surface2);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 16px;
+  transition: background 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+.btn:hover  { background: var(--surface3); }
+.btn:active { transform: scale(0.97); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+
+.btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 6px; }
+.btn-accent { background: var(--accent2); border-color: var(--accent2); }
+.btn-primary { background: var(--accent); color: #1a1a2e; border-color: var(--accent); font-weight: 700; }
+.btn-full { width: 100%; }
+
+/* ── Common components ───────────────────────────── */
+.error { color: var(--danger); font-size: 13px; min-height: 18px; }
+.muted { color: var(--text-muted); font-size: 13px; }
+.center { text-align: center; }
+
+.screen-header { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--surface2); }
+.screen-header h2 { font-size: 22px; font-weight: 300; letter-spacing: 0.05em; }
+
+.beacon-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+.section { margin-bottom: 24px; }
+.section h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+/* ── Ideal badge / tag ───────────────────────────── */
+.ideal-badge {
+  display: inline-block;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.ideal-tag {
+  display: inline-block;
+  border: 1px solid;
+  border-radius: 12px;
+  padding: 2px 10px;
+  font-size: 12px;
+  margin: 2px;
+}
+
+/* ── Status banner ───────────────────────────────── */
+.status-banner {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+.status-banner.praying { background: rgba(100,60,180,0.25); border: 1px solid var(--accent2); color: #c0aaf8; }
+
+/* ── Altar cards ─────────────────────────────────── */
+.altar-list { display: flex; flex-direction: column; gap: 10px; }
+
+.altar-card {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.altar-strongest-card { border-color: var(--accent); }
+
+.altar-ideal { display: flex; align-items: center; gap: 10px; }
+.altar-ideal-name { font-size: 16px; font-weight: 500; }
+.altar-empty { color: var(--text-muted); font-style: italic; }
+
+.altar-info { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.altar-believers { font-size: 12px; color: var(--text-muted); }
+.altar-strongest { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 600; }
+.altar-protected { font-size: 11px; color: var(--text-muted); }
+
+.altar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ── Core ideals ─────────────────────────────────── */
+.core-ideal-list { display: flex; flex-direction: column; gap: 8px; }
+.core-ideal-row { display: flex; align-items: center; gap: 10px; }
+.ideal-name { font-size: 15px; font-weight: 500; flex: 1; }
+.carrying-label { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; }
+
+/* ── Undo bar ─────────────────────────────────────── */
+.undo-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(100,180,100,0.12);
+  border: 1px solid rgba(100,180,100,0.3);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+
+/* ── Path list (at beacon) ───────────────────────── */
+.path-list { display: flex; flex-direction: column; gap: 10px; }
+.path-row { display: flex; align-items: center; justify-content: space-between; background: var(--surface); border: 1px solid var(--surface2); border-radius: 10px; padding: 12px 14px; }
+.path-info { display: flex; flex-direction: column; }
+.path-dest { font-size: 15px; font-weight: 500; }
+.path-dist { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ── Path screen ─────────────────────────────────── */
+.journey-progress { }
+.progress-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+.progress-bar { background: var(--surface2); border-radius: 4px; height: 8px; overflow: hidden; }
+.progress-fill { background: var(--accent); height: 100%; border-radius: 4px; transition: width 0.9s linear; }
+.progress-eta { font-size: 12px; color: var(--text-muted); margin-top: 6px; text-align: right; }
+
+.path-actions { margin-bottom: 20px; }
+
+.carrying-row { display: flex; align-items: center; gap: 12px; }
+.carrying-row.large .ideal-name { font-size: 20px; }
+
+.encounter-list { display: flex; flex-direction: column; gap: 8px; }
+.encounter-row { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 8px; padding: 10px 12px; }
+.encounter-ideal { flex: 1; font-size: 14px; }
+.empty-badge { width: 28px; height: 28px; background: var(--surface2); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; }
+
+.beacon-cores { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.beacon-name-sm { font-size: 12px; color: var(--text-muted); margin-right: 4px; }
+
+/* ── Arrival screen ──────────────────────────────── */
+.arrival-header { text-align: center; }
+.arrival-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.2em; color: var(--accent); margin-bottom: 4px; }
+.arrival-header h2 { font-size: 26px; font-weight: 300; letter-spacing: 0.05em; }
+.arrival-ok { margin-top: 24px; }
+
+/* ── Pilgrim tab ─────────────────────────────────── */
+.pilgrim-tab { padding-bottom: 16px; }
+.belief-list { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.stat { background: var(--surface); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.stat-value { font-size: 20px; font-weight: 300; }
+
+.passport-list { display: flex; flex-direction: column; gap: 6px; }
+.passport-entry { background: var(--surface); border-radius: 6px; padding: 8px 12px; font-size: 14px; }
+
+.seen-ideal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.seen-ideal-item { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 11px; color: var(--text-muted); }
+
+.server-section { padding-top: 8px; }
+.server-url-display { font-size: 12px; word-break: break-all; margin-bottom: 8px; }
+.server-section .input { margin-bottom: 8px; }
+
+/* ── Map tab ─────────────────────────────────────── */
+.map-container { display: flex; flex-direction: column; align-items: center; }
+.map-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.15em; color: var(--text-muted); margin-bottom: 16px; align-self: flex-start; }
+
+.world-map { width: 100%; max-width: 360px; }
+
+.map-path { stroke: var(--surface2); stroke-width: 2; }
+.map-beacon.visited { fill: var(--surface2); stroke: var(--accent); stroke-width: 2; }
+.map-beacon.adjacent { fill: var(--surface); stroke: var(--surface2); stroke-width: 1.5; opacity: 0.6; }
+.map-beacon-label { fill: var(--text); font-size: 10px; text-anchor: middle; }
+.map-beacon-label.dim { fill: var(--text-muted); }
+.map-pilgrim { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
+
+/* ── Desktop ─────────────────────────────────────── */
+@media (min-width: 600px) {
+  .screen-header h2 { font-size: 26px; }
+  .tab-contents { max-width: 480px; margin: 0 auto; }
+  .tab-bar { max-width: 480px; margin: 0 auto; width: 100%; }
+  #screen-main { align-items: center; }
+  .tab-content { padding: 24px; }
+  .stats-grid { grid-template-columns: repeat(4, 1fr); }
+}

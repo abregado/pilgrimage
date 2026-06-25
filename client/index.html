@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Pilgrim</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon-192.svg">
+  <link rel="apple-touch-icon" href="icons/icon-192.svg">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+  <!-- Connect screen -->
+  <div id="screen-connect" class="screen active">
+    <div class="connect-wrap">
+      <div class="connect-logo">
+        <div class="logo-emblem">✦</div>
+        <h1>Pilgrim</h1>
+        <p class="connect-tagline">A journey of ideals</p>
+      </div>
+      <div class="connect-form">
+        <label for="server-url-input">Server Address</label>
+        <input type="text" id="server-url-input" class="input" placeholder="192.168.1.x:3000" autocomplete="off" autocorrect="off" spellcheck="false">
+        <button id="join-btn" class="btn btn-primary btn-full">Join</button>
+        <p id="connect-error" class="error"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main game screen -->
+  <div id="screen-main" class="screen">
+    <div class="tab-contents">
+      <div id="tab-game"    class="tab-content active"></div>
+      <div id="tab-pilgrim" class="tab-content"></div>
+      <div id="tab-map"     class="tab-content"></div>
+    </div>
+    <nav class="tab-bar">
+      <button class="tab-btn active" data-tab="game">Game</button>
+      <button class="tab-btn"        data-tab="pilgrim">Pilgrim</button>
+      <button class="tab-btn"        data-tab="map">Map</button>
+    </nav>
+  </div>
+
+  <script src="js/ideals.js"></script>
+  <script src="js/world.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/network.js"></script>
+  <script src="js/screens/connect.js"></script>
+  <script src="js/screens/beacon.js"></script>
+  <script src="js/screens/path.js"></script>
+  <script src="js/screens/arrival.js"></script>
+  <script src="js/screens/pilgrim.js"></script>
+  <script src="js/screens/map.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
