@@ -28,8 +28,8 @@ Pilgrim.Screens.Path = (() => {
         <div class="progress-labels">
           <span>${fromName}</span><span>${destName}</span>
         </div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${(progress * 100).toFixed(1)}%"></div></div>
-        <div class="progress-eta">Arrives in ${Utils.ticksToSeconds(ticksLeft)}</div>
+        <div class="progress-bar"><div class="progress-fill" id="path-progress-fill" style="width:${(progress * 100).toFixed(1)}%"></div></div>
+        <div class="progress-eta" id="path-eta">Arrives in ${Utils.ticksToSeconds(ticksLeft)}</div>
       </section>`;
 
     html += `<section class="section"><h3>Carrying</h3>`;

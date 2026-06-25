@@ -8,8 +8,6 @@ Pilgrim.Screens.Arrival = (() => {
     const { pilgrim, location } = state;
     if (!location || location.type !== 'beacon') return;
 
-    const coreIdeals = pilgrim.passport.includes(location.id) ? location.coreIdeals : null;
-
     let html = `
       <div class="screen-header arrival-header">
         <div class="arrival-label">Arriving at</div>
@@ -29,15 +27,6 @@ Pilgrim.Screens.Arrival = (() => {
       html += `<section class="section"><h3>Pilgrims You Passed (${pilgrim.encounteredPilgrims.length})</h3><div class="encounter-list">`;
       for (const enc of pilgrim.encounteredPilgrims) {
         html += renderEncounter(enc, pilgrim);
-      }
-      html += `</div></section>`;
-    }
-
-    if (coreIdeals) {
-      html += `<section class="section"><h3>Core Ideals Here</h3><div class="core-ideal-list">`;
-      for (const idealId of coreIdeals) {
-        const ideal = Pilgrim.IDEALS[idealId];
-        html += `<div class="core-ideal-row">${Utils.idealBadge(idealId, false)}<span class="ideal-name" style="color:${ideal.color}">${ideal.name}</span></div>`;
       }
       html += `</div></section>`;
     }

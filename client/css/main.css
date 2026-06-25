@@ -284,7 +284,10 @@ html, body {
 .map-beacon-label.dim { fill: var(--text-muted); }
 .map-pilgrim { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
 
-/* ── Desktop ─────────────────────────────────────── */
+/* ── Sidebar logo (hidden on mobile, shown on desktop) ── */
+.sidebar-logo { display: none; }
+
+/* ── Tablet: narrow centered column ─────────────── */
 @media (min-width: 600px) {
   .screen-header h2 { font-size: 26px; }
   .tab-contents { max-width: 480px; margin: 0 auto; }
@@ -292,4 +295,60 @@ html, body {
   #screen-main { align-items: center; }
   .tab-content { padding: 24px; }
   .stats-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* ── Desktop: sidebar nav + expanding content ────── */
+@media (min-width: 900px) {
+  #screen-main {
+    flex-direction: row;
+    align-items: stretch;
+  }
+
+  .tab-bar {
+    order: -1;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
+    width: 200px;
+    max-width: 200px;
+    height: auto;
+    margin: 0;
+    padding-bottom: 0;
+    border-top: none;
+    border-right: 1px solid var(--surface2);
+    flex-shrink: 0;
+  }
+
+  .sidebar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 20px;
+    color: var(--accent);
+    font-size: 15px;
+    letter-spacing: 0.15em;
+    border-bottom: 1px solid var(--surface2);
+    flex-shrink: 0;
+  }
+
+  .tab-btn {
+    flex: none;
+    text-align: left;
+    padding: 14px 20px;
+    font-size: 13px;
+  }
+
+  .tab-contents {
+    flex: 1;
+    max-width: none;
+    margin: 0;
+  }
+
+  .tab-content {
+    height: 100%;
+    padding: 32px 40px;
+    max-width: 1200px;
+  }
+
+  .world-map { max-width: 600px; }
 }

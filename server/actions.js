@@ -39,6 +39,11 @@ function changeAltar(state, pilgrim, { altarId }) {
   const strongestId = getStrongestAltarId(beacon);
   if (strongestId === altarId) return fail('ALTAR_STRONGEST');
 
+  const alreadyPresent = Object.values(beacon.altars).some(
+    a => a.id !== altarId && a.idealId === pilgrim.carriedIdeal
+  );
+  if (alreadyPresent) return fail('IDEAL_ALREADY_AT_BEACON');
+
   altar.idealId = pilgrim.carriedIdeal;
   altar.believers = [];
   altar.lastChangeTick = state.tick;

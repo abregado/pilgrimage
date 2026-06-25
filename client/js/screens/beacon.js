@@ -19,7 +19,7 @@ Pilgrim.Screens.Beacon = (() => {
       </div>`;
 
     if (praying) {
-      html += `<div class="status-banner praying">Praying… ${Utils.ticksToSeconds(prayingTicksLeft)}</div>`;
+      html += `<div class="status-banner praying">Praying… <span id="praying-countdown">${Utils.ticksToSeconds(prayingTicksLeft)}</span></div>`;
     }
 
     html += `<section class="section"><h3>Altars</h3><div class="altar-list">`;
@@ -54,7 +54,8 @@ Pilgrim.Screens.Beacon = (() => {
     const ideal = Pilgrim.IDEALS[altar.idealId];
     const protectionLeft = Math.max(0, altar.lastChangeTick + 60 - tick);
     const isProtected = protectionLeft > 0;
-    const canChange = !altar.isStrongest && !isProtected && pilgrim.carriedIdeal && pilgrim.state !== 'Praying';
+    const idealAlreadyHere = location.altars.some(a => a.id !== altar.id && a.idealId === pilgrim.carriedIdeal);
+    const canChange = !altar.isStrongest && !isProtected && pilgrim.carriedIdeal && pilgrim.state !== 'Praying' && !idealAlreadyHere;
     const isPraying = pilgrim.state === 'Praying';
 
     let badgeHtml = altar.idealId
@@ -65,7 +66,7 @@ Pilgrim.Screens.Beacon = (() => {
     if (altar.isStrongest && altar.believersCount > 0) {
       statusHtml = `<span class="altar-strongest">Strongest</span>`;
     } else if (isProtected) {
-      statusHtml = `<span class="altar-protected">Protected ${Utils.ticksToSeconds(protectionLeft)}</span>`;
+      statusHtml = `<span class="altar-protected">Protected <span id="altar-protection-${altar.id}">${Utils.ticksToSeconds(protectionLeft)}</span></span>`;
     }
 
     const prayBtn = !isPraying
