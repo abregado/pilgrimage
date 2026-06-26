@@ -1,14 +1,10 @@
-window.Pilgrim = window.Pilgrim || {};
-Pilgrim.Screens = Pilgrim.Screens || {};
-
-Pilgrim.Screens.Connect = (() => {
-  function render() {}
-
-  function init() {
-    document.getElementById('connect-retry-btn').addEventListener('click', () => {
-      Pilgrim.Main.autoConnect();
-    });
-  }
-
-  return { render, init };
-})();
+export function renderConnect(app) {
+  app.innerHTML = `
+    <div class="connect-screen">
+      <div class="connect-inner">
+        <div class="connect-title">Verdant</div>
+        <div class="connect-sub">Connecting&hellip;</div>
+      </div>
+    </div>
+  `;
+}

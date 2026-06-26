@@ -1,231 +1,166 @@
-const { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD } = require('./constants');
-const { applyAction } = require('./actions');
-const { buildClientPayload, findPilgrimByUUID } = require('./state');
-const { saveState } = require('./persistence');
-const crypto = require('crypto');
+import { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD } from './constants.js';
+import { PATH_MAP, LOCATION_MAP } from './world.js';
+import { SEED_MAP } from './seeds.js';
+import { getCherishedPot } from './state.js';
 
-let _state = null;
-const _clients = new Map(); // hardwareUUID -> WebSocket
-const _actionQueue = []; // { pilgrimId, action, resolve }
-
-function init(state) {
-  _state = state;
-  setInterval(tick, TICK_RATE);
+export function startGameLoop(getState, saveState, broadcast) {
+  setInterval(() => tick(getState, saveState, broadcast), TICK_RATE);
 }
 
-function getState() {
-  return _state;
-}
-
-function registerClient(hardwareUUID, ws) {
-  _clients.set(hardwareUUID, ws);
-}
-
-function unregisterClient(hardwareUUID) {
-  _clients.delete(hardwareUUID);
-}
-
-function queueAction(pilgrimId, action, resolve) {
-  _actionQueue.push({ pilgrimId, action, resolve });
-}
-
-function createPilgrim(hardwareUUID) {
-  const beaconIds = Object.keys(_state.beacons);
-  const spawnBeaconId = beaconIds[Math.floor(Math.random() * beaconIds.length)];
-  const beacon = _state.beacons[spawnBeaconId];
-
-  const pilgrim = {
-    id: crypto.randomUUID(),
-    hardwareUUID,
-    state: 'Waiting',
-    beaconId: spawnBeaconId,
-    pathId: null,
-    pathPosition: null,
-    pathDirection: 0,
-    prayingUntilTick: null,
-    lastActiveTick: _state.tick,
-    createdTick: _state.tick,
-    carriedIdeal: null,
-    canUndo: false,
-    undoIdeal: null,
-    passport: [spawnBeaconId],
-    seenIdeals: [...beacon.coreIdeals],
-    encounteredPilgrims: [],
-  };
-
-  _state.pilgrims[pilgrim.id] = pilgrim;
-  return pilgrim;
-}
-
-function sendState(ws, pilgrim) {
-  const payload = buildClientPayload(_state, pilgrim);
-  ws.send(JSON.stringify({ type: 'STATE', payload }));
-}
-
-function pushToClient(hardwareUUID, pilgrim) {
-  const ws = _clients.get(hardwareUUID);
-  if (ws && ws.readyState === 1) {
-    sendState(ws, pilgrim);
-  }
-}
-
-function tick() {
+function tick(getState, saveState, broadcast) {
+  const state = getState();
   let changed = false;
-  const toNotify = new Set(); // pilgrimIds to push state to
 
-  // 1. Process queued actions
-  const actions = _actionQueue.splice(0);
-  for (const { pilgrimId, action, resolve } of actions) {
-    const result = applyAction(_state, pilgrimId, action);
-    resolve(result);
-    if (result.success) {
-      toNotify.add(pilgrimId);
+  // 1. Increment tick
+  state.tick++;
+
+  // 2. Advance walking gardeners
+  for (const gardener of Object.values(state.gardeners)) {
+    if (gardener.state !== 'walking') continue;
+    gardener.progress += MOVEMENT_SPEED;
+    changed = true;
+  }
+
+  // 3. Check for arrivals
+  for (const gardener of Object.values(state.gardeners)) {
+    if (gardener.state !== 'walking') continue;
+    const path = PATH_MAP[gardener.pathId];
+    if (!path) continue;
+
+    if (gardener.progress >= path.length) {
+      // Determine destination: the end that isn't pathFrom
+      const destId = path.fromId === gardener.pathFrom ? path.toId : path.fromId;
+
+      gardener.state = 'arriving';
+      gardener.locationId = destId;
+      gardener.arrivedEncounters = [...gardener.encounteredThisTrip];
+      gardener.encounteredThisTrip = [];
+      gardener.pathId = null;
+      gardener.pathFrom = null;
+      gardener.progress = 0;
+
+      // Add to wanderings
+      gardener.record.wanderings.push(destId);
+
+      // Seed log discoveries at the arrived location
+      updateSeedLogOnArrival(gardener, destId, state);
+
       changed = true;
     }
   }
 
-  // 2. Advance travelling pilgrims (save prev positions for encounter detection)
-  const prevPositions = {};
-  for (const pilgrim of Object.values(_state.pilgrims)) {
-    if (pilgrim.state !== 'Travelling') continue;
-    prevPositions[pilgrim.id] = pilgrim.pathPosition;
+  // 4. Check for encounters between walking gardeners going opposite directions
+  // Group by pathId
+  const pathGroups = {};
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
+    if (gardener.state !== 'walking') continue;
+    const pid = gardener.pathId;
+    if (!pathGroups[pid]) pathGroups[pid] = [];
+    pathGroups[pid].push(gardener);
+  }
 
-    const path = _state.paths[pilgrim.pathId];
+  for (const [pathId, walkers] of Object.entries(pathGroups)) {
+    const path = PATH_MAP[pathId];
     if (!path) continue;
 
-    if (pilgrim.pathDirection === 0) {
-      pilgrim.pathPosition = Math.min(pilgrim.pathPosition + MOVEMENT_SPEED, path.length);
-    } else {
-      pilgrim.pathPosition = Math.max(pilgrim.pathPosition - MOVEMENT_SPEED, 0);
-    }
-    changed = true;
-  }
+    for (let i = 0; i < walkers.length; i++) {
+      for (let j = i + 1; j < walkers.length; j++) {
+        const a = walkers[i];
+        const b = walkers[j];
 
-  // 3. Detect encounters
-  const pathGroups = {};
-  for (const pilgrim of Object.values(_state.pilgrims)) {
-    if (pilgrim.state !== 'Travelling') continue;
-    if (!pathGroups[pilgrim.pathId]) pathGroups[pilgrim.pathId] = [];
-    pathGroups[pilgrim.pathId].push(pilgrim);
-  }
+        // Must be going opposite directions
+        const aToward = a.pathFrom === path.fromId ? path.toId : path.fromId;
+        const bToward = b.pathFrom === path.fromId ? path.toId : path.fromId;
+        if (aToward === bToward) continue; // same direction
 
-  for (const pilgrims of Object.values(pathGroups)) {
-    for (let i = 0; i < pilgrims.length; i++) {
-      for (let j = i + 1; j < pilgrims.length; j++) {
-        const a = pilgrims[i];
-        const b = pilgrims[j];
-        if (a.pathDirection === b.pathDirection) continue;
+        // Absolute positions from path.fromId
+        const absA = a.pathFrom === path.fromId ? a.progress : path.length - a.progress;
+        const absB = b.pathFrom === path.fromId ? b.progress : path.length - b.progress;
 
-        const pA = prevPositions[a.id] ?? a.pathPosition;
-        const pB = prevPositions[b.id] ?? b.pathPosition;
-        const cA = a.pathPosition;
-        const cB = b.pathPosition;
+        // Check crossing condition
+        // (absA + absB) was < path.length last tick (by ~2*MOVEMENT_SPEED), now >= path.length
+        const sum = absA + absB;
+        if (sum < path.length || sum >= path.length + 2 * MOVEMENT_SPEED) continue;
 
-        let crossed = false;
-        if (a.pathDirection === 0 && b.pathDirection === 1) {
-          crossed = pA <= pB && cA >= cB;
-        } else if (a.pathDirection === 1 && b.pathDirection === 0) {
-          crossed = pA >= pB && cA <= cB;
+        // Already encountered?
+        const alreadyEncountered = a.encounteredThisTrip.some(e => e.id === b.id);
+        if (alreadyEncountered) continue;
+
+        // Add to each other's encounteredThisTrip
+        a.encounteredThisTrip.push({ id: b.id, seed: b.seed });
+        b.encounteredThisTrip.push({ id: a.id, seed: a.seed });
+
+        // Seed log: mark 'seed' discovered for encountered seed
+        if (b.seed && a.record.seedLog[b.seed]) {
+          a.record.seedLog[b.seed].seed = true;
+        }
+        if (a.seed && b.record.seedLog[a.seed]) {
+          b.record.seedLog[a.seed].seed = true;
         }
 
-        if (!crossed) continue;
-
-        if (!a.encounteredPilgrims.some(e => e.pilgrimId === b.id)) {
-          a.encounteredPilgrims.push({ pilgrimId: b.id, idealId: b.carriedIdeal });
-          if (b.carriedIdeal && !a.seenIdeals.includes(b.carriedIdeal)) {
-            a.seenIdeals.push(b.carriedIdeal);
-          }
-          toNotify.add(a.id);
-        }
-        if (!b.encounteredPilgrims.some(e => e.pilgrimId === a.id)) {
-          b.encounteredPilgrims.push({ pilgrimId: a.id, idealId: a.carriedIdeal });
-          if (a.carriedIdeal && !b.seenIdeals.includes(a.carriedIdeal)) {
-            b.seenIdeals.push(a.carriedIdeal);
-          }
-          toNotify.add(b.id);
-        }
         changed = true;
       }
     }
   }
 
-  // 4. Detect arrivals
-  for (const pilgrim of Object.values(_state.pilgrims)) {
-    if (pilgrim.state !== 'Travelling') continue;
-    const path = _state.paths[pilgrim.pathId];
-    if (!path) continue;
-
-    let arrived = false;
-    let destBeaconId = null;
-
-    if (pilgrim.pathDirection === 0 && pilgrim.pathPosition >= path.length) {
-      destBeaconId = path.beaconIds[1];
-      arrived = true;
-    } else if (pilgrim.pathDirection === 1 && pilgrim.pathPosition <= 0) {
-      destBeaconId = path.beaconIds[0];
-      arrived = true;
-    }
-
-    if (arrived) {
-      pilgrim.beaconId = destBeaconId;
-      pilgrim.pathId = null;
-      pilgrim.pathPosition = null;
-      pilgrim.state = 'Waiting';
-
-      if (!pilgrim.passport.includes(destBeaconId)) {
-        pilgrim.passport.push(destBeaconId);
-      }
-      const destBeacon = _state.beacons[destBeaconId];
-      if (destBeacon) {
-        for (const idealId of destBeacon.coreIdeals) {
-          if (!pilgrim.seenIdeals.includes(idealId)) {
-            pilgrim.seenIdeals.push(idealId);
-          }
-        }
-      }
-      toNotify.add(pilgrim.id);
+  // 5. Check for tending expiry
+  for (const gardener of Object.values(state.gardeners)) {
+    if (gardener.state === 'tending' && gardener.tendingUntil !== null && gardener.tendingUntil <= state.tick) {
+      gardener.state = 'resting';
+      gardener.tendingUntil = null;
       changed = true;
     }
   }
 
-  // 5. Expire Praying states and detect sleeping
-  _state.tick++;
-  for (const pilgrim of Object.values(_state.pilgrims)) {
-    if (pilgrim.state === 'Praying' && pilgrim.prayingUntilTick <= _state.tick) {
-      pilgrim.state = 'Waiting';
-      pilgrim.prayingUntilTick = null;
-      toNotify.add(pilgrim.id);
-      changed = true;
+  // 6. Check for settling expiry
+  for (const locData of Object.values(state.locations)) {
+    for (const pot of locData.pots) {
+      if (pot.settlingUntil !== null && pot.settlingUntil <= state.tick) {
+        pot.settlingUntil = null;
+        changed = true;
+      }
     }
-    if (
-      (pilgrim.state === 'Waiting' || pilgrim.state === 'Praying') &&
-      _state.tick - pilgrim.lastActiveTick >= SLEEP_THRESHOLD
-    ) {
-      pilgrim.state = 'Sleeping';
-      toNotify.add(pilgrim.id);
+  }
+
+  // 7. Check for sleeping
+  for (const gardener of Object.values(state.gardeners)) {
+    if (gardener.state === 'resting' && gardener.lastActiveTick + SLEEP_THRESHOLD < state.tick) {
+      gardener.state = 'sleeping';
       changed = true;
     }
   }
 
-  // 6. Save if changed
+  // 8. Save if changed
   if (changed) {
-    saveState(_state);
+    saveState(state);
   }
 
-  // 7. Push to affected clients
-  for (const pilgrimId of toNotify) {
-    const pilgrim = _state.pilgrims[pilgrimId];
-    if (pilgrim) pushToClient(pilgrim.hardwareUUID, pilgrim);
-  }
+  // 9. Push updated view to all connected clients
+  broadcast();
 }
 
-module.exports = {
-  init,
-  getState,
-  registerClient,
-  unregisterClient,
-  queueAction,
-  createPilgrim,
-  sendState,
-  findPilgrimByUUID,
-};
+function updateSeedLogOnArrival(gardener, locationId, state) {
+  const locData = state.locations[locationId];
+  if (!locData) return;
+
+  const cherishedPotId = getCherishedPot(locationId);
+
+  for (const pot of locData.pots) {
+    if (!pot.seedId) continue;
+
+    // Mark 'plant' — they see a planted seed
+    if (gardener.record.seedLog[pot.seedId]) {
+      gardener.record.seedLog[pot.seedId].plant = true;
+    }
+
+    // Mark 'origin' — if this pot is the origin pot
+    if (pot.isOrigin && gardener.record.seedLog[pot.seedId]) {
+      gardener.record.seedLog[pot.seedId].origin = true;
+    }
+
+    // Mark 'cherished' — if this is the cherished pot
+    if (pot.id === cherishedPotId && gardener.record.seedLog[pot.seedId]) {
+      gardener.record.seedLog[pot.seedId].cherished = true;
+    }
+  }
+}

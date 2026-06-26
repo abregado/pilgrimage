@@ -1,88 +1,94 @@
-window.Pilgrim = window.Pilgrim || {};
-Pilgrim.Screens = Pilgrim.Screens || {};
+import { getState } from '../state.js';
+import { formatDistance, formatDuration } from '../utils.js';
+import { SEED_MAP } from '../seeds.js';
+import { LOCATION_MAP } from '../world.js';
 
-Pilgrim.Screens.Path = (() => {
-  const { Utils } = Pilgrim;
+function seedIcon(seedId) {
+  if (!seedId) return `<div class="seed-icon" style="background:#222"></div>`;
+  const seed = SEED_MAP[seedId];
+  const color = seed ? seed.color : '#666';
+  return `<div class="seed-icon" style="background:${color}"><img src="/assets/seed_${seedId}.svg" alt="" onerror="this.style.display='none'"></div>`;
+}
 
-  function render(state) {
-    const { pilgrim, location } = state;
-    if (!location || location.type !== 'path') return;
+export function renderPath(app) {
+  const state = getState();
+  if (!state) return;
 
-    const tick = Pilgrim.State.estimateTick();
-    const ticksLeft = Utils.ticksUntilArrival(pilgrim, location);
-    const progress = Utils.pathProgressFraction(pilgrim, location.length);
+  const { gardener, path, tick } = state;
+  if (!path) return;
 
-    const goingToIdx = pilgrim.pathDirection === 0 ? 1 : 0;
-    const fromIdx    = pilgrim.pathDirection === 0 ? 0 : 1;
-    const destName   = location.beaconNames[goingToIdx];
-    const fromName   = location.beaconNames[fromIdx];
-    const destCores  = location.beaconCoreIdeals[goingToIdx];
-    const fromCores  = location.beaconCoreIdeals[fromIdx];
+  // Destination name
+  const destId = path.pathFrom === path.fromId ? path.toId : path.fromId;
+  const fromId = path.pathFrom;
+  const destName = (LOCATION_MAP[destId] || {}).name || destId;
+  const fromName = (LOCATION_MAP[fromId] || {}).name || fromId;
 
-    let html = `
-      <div class="screen-header">
-        <h2>${fromName} → ${destName}</h2>
+  // Progress fraction (from pathFrom toward destination)
+  const frac = Math.min(1, path.progress / path.length);
+  const pct = (frac * 100).toFixed(1);
+
+  const remaining = path.length - path.progress;
+  const ticksLeft = Math.ceil(remaining / 16); // MOVEMENT_SPEED
+
+  let html = `<div class="main-screen"><div class="screen-content">`;
+
+  // Header
+  html += `<div class="location-header"><h2>${fromName} &rarr; ${destName}</h2></div>`;
+
+  // Progress
+  html += `
+    <div class="section progress-wrap">
+      <div class="progress-labels">
+        <span>${fromName}</span><span>${destName}</span>
       </div>
-
-      <section class="section journey-progress">
-        <div class="progress-labels">
-          <span>${fromName}</span><span>${destName}</span>
-        </div>
-        <div class="progress-bar"><div class="progress-fill" id="path-progress-fill" style="width:${(progress * 100).toFixed(1)}%"></div></div>
-        <div class="progress-eta" id="path-eta">Arrives in ${Utils.ticksToSeconds(ticksLeft)}</div>
-      </section>`;
-
-    html += `<section class="section"><h3>Carrying</h3>`;
-    if (pilgrim.carriedIdeal) {
-      html += `<div class="carrying-row">${Utils.idealBadge(pilgrim.carriedIdeal, true)}<span class="ideal-name" style="color:${Pilgrim.IDEALS[pilgrim.carriedIdeal].color}">${Pilgrim.IDEALS[pilgrim.carriedIdeal].name}</span></div>`;
-    } else {
-      html += `<p class="muted">Carrying nothing</p>`;
-    }
-    html += `</section>`;
-
-    html += `<div class="path-actions">
-      <button class="btn" data-action="reverse">Reverse Direction</button>
+      <div class="progress-bar">
+        <div class="progress-fill" id="path-fill" style="width:${pct}%"></div>
+      </div>
+      <div class="progress-eta" id="path-eta">
+        ${formatDistance(Math.max(0, remaining))} remaining &middot; ~${formatDuration(ticksLeft)}
+      </div>
     </div>`;
 
-    if (location.pilgrimsOnPath.length > 1 || pilgrim.encounteredPilgrims.length > 0) {
-      html += `<section class="section"><h3>Pilgrims Passed (${location.passedCount})</h3>`;
-      if (pilgrim.encounteredPilgrims.length === 0) {
-        html += `<p class="muted">None yet</p>`;
-      } else {
-        html += `<div class="encounter-list">`;
-        for (const enc of pilgrim.encounteredPilgrims) {
-          html += renderEncounter(enc, pilgrim);
-        }
-        html += `</div>`;
-      }
-      html += `</section>`;
-    }
+  // Carry
+  html += `<div class="section"><h3>Carrying</h3>`;
+  if (gardener.seed) {
+    const seed = SEED_MAP[gardener.seed];
+    const color = seed ? seed.color : '#666';
+    html += `<div class="carry-bar">
+      ${seedIcon(gardener.seed)}
+      <span class="carry-name" style="color:${color}">${seed ? seed.name : gardener.seed}</span>
+    </div>`;
+  } else {
+    html += `<div class="carry-bar"><span class="carry-label">Carrying nothing</span></div>`;
+  }
+  html += `</div>`;
 
-    if (destCores || fromCores) {
-      html += `<section class="section"><h3>Beacon Ideals</h3>`;
-      if (fromCores) {
-        html += `<div class="beacon-cores"><span class="beacon-name-sm">${fromName}:</span> ${fromCores.map(id => Utils.idealTag(id)).join(' ')}</div>`;
-      }
-      if (destCores) {
-        html += `<div class="beacon-cores"><span class="beacon-name-sm">${destName}:</span> ${destCores.map(id => Utils.idealTag(id)).join(' ')}</div>`;
-      }
-      html += `</section>`;
-    }
+  // Reverse
+  html += `<div class="section">
+    <button class="btn" data-action="reverse">Reverse Direction</button>
+  </div>`;
 
-    document.getElementById('tab-game').innerHTML = html;
+  // Encounters
+  if (path.encounters && path.encounters.length > 0) {
+    html += `<div class="section"><h3>Encountered (${path.encounters.length})</h3><div class="encounter-list">`;
+    for (const enc of path.encounters) {
+      const encSeed = enc.seed ? SEED_MAP[enc.seed] : null;
+      const carrying = gardener.seed === enc.seed && enc.seed !== null;
+      html += `
+        <div class="encounter-row">
+          ${seedIcon(enc.seed)}
+          <div class="encounter-info">
+            <div>${enc.id}</div>
+            <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
+          </div>
+          ${enc.seed && !carrying
+            ? `<button class="btn btn-sm btn-sage" data-action="take_seed" data-from-id="${enc.id}">Take Seed</button>`
+            : ''}
+        </div>`;
+    }
+    html += `</div></div>`;
   }
 
-  function renderEncounter(enc, pilgrim) {
-    const ideal = enc.idealId ? Pilgrim.IDEALS[enc.idealId] : null;
-    const carrying = pilgrim.carriedIdeal === enc.idealId;
-
-    return `
-      <div class="encounter-row">
-        ${enc.idealId ? Utils.idealBadge(enc.idealId, false) : '<span class="ideal-badge empty-badge">?</span>'}
-        <span class="encounter-ideal" ${ideal ? `style="color:${ideal.color}"` : ''}>${ideal ? ideal.name : 'Nothing'}</span>
-        ${!carrying && enc.idealId ? `<button class="btn btn-sm" data-action="swap" data-pilgrim="${enc.pilgrimId}">Take</button>` : ''}
-      </div>`;
-  }
-
-  return { render };
-})();
+  html += `</div></div>`; // screen-content, main-screen
+  app.innerHTML = html;
+}

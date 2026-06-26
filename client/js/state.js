@@ -1,65 +1,19 @@
-window.Pilgrim = window.Pilgrim || {};
+// Client-side state
+let _state = null;         // last GardenerView from server
+let _screen = 'connect';   // 'connect' | 'location' | 'path' | 'arrival'
+let _tab = 'location';     // 'location' | 'map' | 'record'
 
-Pilgrim.State = (() => {
-  let _state = {
-    connected: false,
-    activeTab: 'game',
-    lastGameScreen: 'beacon', // 'beacon' | 'path' — tracks previous game screen for arrival
-    serverTick: 0,
-    lastUpdateTime: 0,
-    pilgrimId: null,
-    pilgrim: null,
-    location: null,
-    serverUrl: null,
-  };
+export function setState(s) { _state = s; }
+export function getState() { return _state; }
+export function getScreen() { return _screen; }
+export function getTab() { return _tab; }
+export function setTab(t) { _tab = t; }
 
-  const _listeners = [];
-
-  function get() {
-    return _state;
-  }
-
-  function set(partial) {
-    Object.assign(_state, partial);
-    _listeners.forEach(fn => fn(_state));
-  }
-
-  function subscribe(fn) {
-    _listeners.push(fn);
-    return () => {
-      const i = _listeners.indexOf(fn);
-      if (i > -1) _listeners.splice(i, 1);
-    };
-  }
-
-  function applyServerState(payload) {
-    const prevPilgrim = _state.pilgrim;
-
-    // Detect transition from path → beacon for arrival screen
-    if (prevPilgrim && prevPilgrim.pathId && payload.pilgrim && !payload.pilgrim.pathId) {
-      _state.lastGameScreen = 'path';
-    } else if (payload.pilgrim && payload.pilgrim.pathId) {
-      _state.lastGameScreen = 'path';
-    } else if (_state.lastGameScreen !== 'path') {
-      _state.lastGameScreen = 'beacon';
-    }
-
-    set({
-      serverTick: payload.tick,
-      lastUpdateTime: Date.now(),
-      pilgrim: payload.pilgrim,
-      location: payload.location,
-    });
-  }
-
-  function estimateTick() {
-    return Pilgrim.Utils.estimateTick(_state.serverTick, _state.lastUpdateTime);
-  }
-
-  function clearArrival() {
-    _state.lastGameScreen = 'beacon';
-    _listeners.forEach(fn => fn(_state));
-  }
-
-  return { get, set, subscribe, applyServerState, estimateTick, clearArrival };
-})();
+// Derive screen from server state
+export function updateScreenFromState() {
+  if (!_state) { _screen = 'connect'; return; }
+  const g = _state.gardener;
+  if (g.state === 'arriving') _screen = 'arrival';
+  else if (g.state === 'walking') _screen = 'path';
+  else _screen = 'location';
+}

@@ -1,154 +1,195 @@
-const { SLEEP_THRESHOLD } = require('./constants');
+import { SEEDS, SEED_MAP } from './seeds.js';
+import { LOCATIONS, LOCATION_MAP, PATH_MAP } from './world.js';
 
-function getStrongestAltarId(beacon) {
-  let max = 0;
-  let strongestId = null;
-  for (const altar of Object.values(beacon.altars)) {
-    if (altar.believers.length > max) {
-      max = altar.believers.length;
-      strongestId = altar.id;
-    }
+let _state = null;
+
+function makeFreshLocations() {
+  const locations = {};
+  for (const loc of LOCATIONS) {
+    const originSeed = SEEDS.find(s => s.locationId === loc.id);
+    const pots = [
+      {
+        id: `${loc.id}_pot_0`,
+        seedId: originSeed ? originSeed.id : null,
+        isOrigin: true,
+        singers: [],
+        settlingUntil: null,
+      },
+      {
+        id: `${loc.id}_pot_1`,
+        seedId: null,
+        isOrigin: false,
+        singers: [],
+        settlingUntil: null,
+      },
+      {
+        id: `${loc.id}_pot_2`,
+        seedId: null,
+        isOrigin: false,
+        singers: [],
+        settlingUntil: null,
+      },
+    ];
+    locations[loc.id] = { pots };
   }
-  return strongestId;
+  return locations;
 }
 
-function getBeliefStructure(pilgrim, state) {
-  const counts = {};
-  for (const beacon of Object.values(state.beacons)) {
-    for (const altar of Object.values(beacon.altars)) {
-      if (altar.believers.includes(pilgrim.id) && altar.idealId) {
-        counts[altar.idealId] = (counts[altar.idealId] || 0) + altar.believers.length;
+export function initState(loaded) {
+  if (loaded && loaded.tick !== undefined && loaded.locations && loaded.gardeners) {
+    _state = loaded;
+  } else {
+    _state = {
+      tick: 0,
+      gardeners: {},
+      locations: makeFreshLocations(),
+    };
+  }
+}
+
+export function getState() {
+  return _state;
+}
+
+export function getCherishedPot(locationId) {
+  const loc = _state.locations[locationId];
+  if (!loc) return null;
+
+  let best = null;
+  let bestCount = -1;
+
+  for (const pot of loc.pots) {
+    if (!pot.seedId) continue; // empty pots can't be cherished
+    const count = pot.singers.length;
+    if (count > bestCount || (count === bestCount && pot.isOrigin)) {
+      best = pot;
+      bestCount = count;
+    }
+  }
+
+  // Must have at least 0 singers? Actually any non-empty pot with most singers is cherished.
+  // But ties go to origin. A pot with 0 singers can still be cherished if all pots have 0.
+  return best ? best.id : null;
+}
+
+export function getGardenerView(deviceId) {
+  if (!_state) return null;
+  const gardener = _state.gardeners[deviceId];
+  if (!gardener) return null;
+
+  const tick = _state.tick;
+
+  // Build location data
+  let locationView = null;
+  if (gardener.locationId) {
+    const locData = _state.locations[gardener.locationId];
+    const locMeta = LOCATION_MAP[gardener.locationId];
+    const cherishedPotId = getCherishedPot(gardener.locationId);
+
+    // Other gardeners at this location
+    const otherGardeners = [];
+    for (const [dId, g] of Object.entries(_state.gardeners)) {
+      if (dId !== deviceId && g.locationId === gardener.locationId && g.state !== 'sleeping') {
+        otherGardeners.push({ id: g.id, seed: g.seed });
+      }
+    }
+
+    const pots = locData.pots.map(pot => {
+      const seedMeta = pot.seedId ? SEED_MAP[pot.seedId] : null;
+      return {
+        id: pot.id,
+        seedId: pot.seedId,
+        seedName: seedMeta ? seedMeta.name : null,
+        isOrigin: pot.isOrigin,
+        singerCount: pot.singers.length,
+        iAmSinger: pot.singers.includes(gardener.id),
+        isCherished: pot.id === cherishedPotId,
+        settlingUntil: pot.settlingUntil,
+      };
+    });
+
+    locationView = {
+      id: gardener.locationId,
+      name: locMeta.name,
+      pots,
+      otherGardeners,
+    };
+  }
+
+  // Build path data
+  let pathView = null;
+  if (gardener.pathId) {
+    const path = PATH_MAP[gardener.pathId];
+    const fromLoc = LOCATION_MAP[path.fromId];
+    const toLoc = LOCATION_MAP[path.toId];
+
+    pathView = {
+      id: path.id,
+      length: path.length,
+      fromId: path.fromId,
+      fromName: fromLoc.name,
+      toId: path.toId,
+      toName: toLoc.name,
+      progress: gardener.progress,
+      pathFrom: gardener.pathFrom,
+      encounters: gardener.encounteredThisTrip.map(e => ({ id: e.id, seed: e.seed })),
+    };
+  }
+
+  // Build arrival data
+  let arrivalView = null;
+  if (gardener.state === 'arriving' && gardener.locationId) {
+    const locMeta = LOCATION_MAP[gardener.locationId];
+    arrivalView = {
+      locationId: gardener.locationId,
+      locationName: locMeta.name,
+      encounters: (gardener.arrivedEncounters || []).map(e => ({ id: e.id, seed: e.seed })),
+    };
+  }
+
+  // Build record data
+  const record = gardener.record;
+  // Build garden: top 3 pots where iAmSinger and still a singer
+  const gardenPots = [];
+  for (const potId of record.singerPots) {
+    // Find this pot in all locations
+    for (const [locId, locData] of Object.entries(_state.locations)) {
+      const pot = locData.pots.find(p => p.id === potId);
+      if (pot && pot.singers.includes(gardener.id) && pot.seedId) {
+        gardenPots.push({
+          seedId: pot.seedId,
+          otherSingerCount: pot.singers.length - 1,
+        });
+        break;
       }
     }
   }
-  return Object.entries(counts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([id]) => id);
-}
-
-function findPilgrimByUUID(state, hardwareUUID) {
-  return Object.values(state.pilgrims).find(p => p.hardwareUUID === hardwareUUID) || null;
-}
-
-function getPathsForBeacon(state, beaconId) {
-  return Object.values(state.paths).filter(p => p.beaconIds.includes(beaconId));
-}
-
-function buildClientPayload(state, pilgrim) {
-  const beliefStructure = getBeliefStructure(pilgrim, state);
-  let location = null;
-
-  if (pilgrim.pathId) {
-    location = buildPathPayload(state, pilgrim);
-  } else if (pilgrim.beaconId) {
-    location = buildBeaconPayload(state, pilgrim);
-  }
+  gardenPots.sort((a, b) => b.otherSingerCount - a.otherSingerCount);
+  const garden = gardenPots.slice(0, 3);
 
   return {
-    tick: state.tick,
-    pilgrim: {
-      id: pilgrim.id,
-      state: pilgrim.state,
-      beaconId: pilgrim.beaconId,
-      pathId: pilgrim.pathId,
-      pathPosition: pilgrim.pathPosition,
-      pathDirection: pilgrim.pathDirection,
-      prayingUntilTick: pilgrim.prayingUntilTick,
-      lastActiveTick: pilgrim.lastActiveTick,
-      createdTick: pilgrim.createdTick,
-      carriedIdeal: pilgrim.carriedIdeal,
-      canUndo: pilgrim.canUndo,
-      undoIdeal: pilgrim.undoIdeal,
-      beliefStructure,
-      passport: pilgrim.passport,
-      seenIdeals: pilgrim.seenIdeals,
-      encounteredPilgrims: pilgrim.encounteredPilgrims,
+    gardener: {
+      id: gardener.id,
+      state: gardener.state,
+      locationId: gardener.locationId,
+      pathId: gardener.pathId,
+      pathFrom: gardener.pathFrom,
+      progress: gardener.progress,
+      seed: gardener.seed,
+      tendingUntil: gardener.tendingUntil,
+      justTookOrigin: gardener.justTookOrigin,
+      createdTick: gardener.createdTick,
+      lastActiveTick: gardener.lastActiveTick,
     },
-    location,
+    location: locationView,
+    path: pathView,
+    arrival: arrivalView,
+    record: {
+      wanderings: record.wanderings,
+      seedLog: record.seedLog,
+      garden,
+      ageTicks: tick - gardener.createdTick,
+    },
+    tick,
   };
 }
-
-function buildBeaconPayload(state, pilgrim) {
-  const beacon = state.beacons[pilgrim.beaconId];
-  if (!beacon) return null;
-
-  const strongestAltarId = getStrongestAltarId(beacon);
-
-  const pilgrimsHere = Object.values(state.pilgrims).filter(p => p.beaconId === beacon.id);
-  const awakePilgrims = pilgrimsHere.filter(
-    p => state.tick - p.lastActiveTick < 21600
-  ).length;
-
-  const altars = Object.values(beacon.altars).map(altar => ({
-    id: altar.id,
-    idealId: altar.idealId,
-    believersCount: altar.believers.length,
-    lastChangeTick: altar.lastChangeTick,
-    isStrongest: altar.id === strongestAltarId,
-  }));
-
-  const paths = getPathsForBeacon(state, beacon.id).map(path => {
-    const otherBeaconId = path.beaconIds[0] === beacon.id ? path.beaconIds[1] : path.beaconIds[0];
-    return {
-      pathId: path.id,
-      otherBeaconId,
-      otherBeaconName: state.beacons[otherBeaconId].name,
-      length: path.length,
-    };
-  });
-
-  return {
-    type: 'beacon',
-    id: beacon.id,
-    name: beacon.name,
-    coreIdeals: beacon.coreIdeals,
-    altars,
-    pilgrimsPresent: pilgrimsHere.length,
-    awakePilgrims,
-    paths,
-  };
-}
-
-function buildPathPayload(state, pilgrim) {
-  const path = state.paths[pilgrim.pathId];
-  if (!path) return null;
-
-  const [b0id, b1id] = path.beaconIds;
-  const b0 = state.beacons[b0id];
-  const b1 = state.beacons[b1id];
-
-  const b0Visited = pilgrim.passport.includes(b0id);
-  const b1Visited = pilgrim.passport.includes(b1id);
-
-  const pilgrimsOnPath = Object.values(state.pilgrims)
-    .filter(p => p.pathId === path.id)
-    .map(p => ({
-      pathPosition: p.pathPosition,
-      direction: p.pathDirection,
-      idealId: p.carriedIdeal,
-      isCurrentClient: p.id === pilgrim.id,
-    }));
-
-  return {
-    type: 'path',
-    id: path.id,
-    length: path.length,
-    beaconIds: path.beaconIds,
-    beaconNames: [b0.name, b1.name],
-    beaconCoreIdeals: [
-      b0Visited ? b0.coreIdeals : null,
-      b1Visited ? b1.coreIdeals : null,
-    ],
-    pilgrimsOnPath,
-    passedCount: pilgrim.encounteredPilgrims.length,
-  };
-}
-
-module.exports = {
-  getStrongestAltarId,
-  getBeliefStructure,
-  findPilgrimByUUID,
-  getPathsForBeacon,
-  buildClientPayload,
-};

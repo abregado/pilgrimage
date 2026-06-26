@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <circle cx="32" cy="32" r="32" fill="#E67E22"/>
+  <!-- Spiral/curl -->
+  <path d="M32 32 C32 32 40 24 40 18 C40 14 36 12 32 14 C26 16 22 22 22 28 C22 36 28 42 36 42 C44 42 48 36 46 30" stroke="white" stroke-width="3" fill="none" opacity="0.9" stroke-linecap="round"/>
+</svg>

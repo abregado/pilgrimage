@@ -1,52 +1,62 @@
-window.Pilgrim = window.Pilgrim || {};
-Pilgrim.Screens = Pilgrim.Screens || {};
+import { getState } from '../state.js';
+import { SEED_MAP } from '../seeds.js';
 
-Pilgrim.Screens.Arrival = (() => {
-  const { Utils } = Pilgrim;
+function seedIcon(seedId) {
+  if (!seedId) return `<div class="seed-icon" style="background:#222"></div>`;
+  const seed = SEED_MAP[seedId];
+  const color = seed ? seed.color : '#666';
+  return `<div class="seed-icon" style="background:${color}"><img src="/assets/seed_${seedId}.svg" alt="" onerror="this.style.display='none'"></div>`;
+}
 
-  function render(state) {
-    const { pilgrim, location } = state;
-    if (!location || location.type !== 'beacon') return;
+export function renderArrival(app) {
+  const state = getState();
+  if (!state) return;
 
-    let html = `
-      <div class="screen-header arrival-header">
-        <div class="arrival-label">Arriving at</div>
-        <h2>${location.name}</h2>
-      </div>`;
+  const { gardener, arrival } = state;
+  if (!arrival) return;
 
-    html += `<section class="section"><h3>Carrying</h3>`;
-    if (pilgrim.carriedIdeal) {
-      const ideal = Pilgrim.IDEALS[pilgrim.carriedIdeal];
-      html += `<div class="carrying-row">${Utils.idealBadge(pilgrim.carriedIdeal, true)}<span class="ideal-name" style="color:${ideal.color}">${ideal.name}</span></div>`;
-    } else {
-      html += `<p class="muted">Carrying nothing</p>`;
-    }
-    html += `</section>`;
+  let html = `<div class="arrival-screen">`;
 
-    if (pilgrim.encounteredPilgrims.length > 0) {
-      html += `<section class="section"><h3>Pilgrims You Passed (${pilgrim.encounteredPilgrims.length})</h3><div class="encounter-list">`;
-      for (const enc of pilgrim.encounteredPilgrims) {
-        html += renderEncounter(enc, pilgrim);
-      }
-      html += `</div></section>`;
-    }
+  html += `
+    <div class="arrival-label">Arrived at</div>
+    <div class="arrival-name">${arrival.locationName}</div>`;
 
-    html += `<div class="arrival-ok"><button class="btn btn-primary" data-action="arrival-ok">Continue to ${location.name}</button></div>`;
-
-    document.getElementById('tab-game').innerHTML = html;
+  // Carry
+  if (gardener.seed) {
+    const seed = SEED_MAP[gardener.seed];
+    const color = seed ? seed.color : '#666';
+    html += `<div class="carry-bar">
+      ${seedIcon(gardener.seed)}
+      <span class="carry-name" style="color:${color}">${seed ? seed.name : gardener.seed}</span>
+      <span class="carry-label">carried</span>
+    </div>`;
   }
 
-  function renderEncounter(enc, pilgrim) {
-    const ideal = enc.idealId ? Pilgrim.IDEALS[enc.idealId] : null;
-    const carrying = pilgrim.carriedIdeal === enc.idealId;
-
-    return `
-      <div class="encounter-row">
-        ${enc.idealId ? Pilgrim.Utils.idealBadge(enc.idealId, false) : '<span class="ideal-badge empty-badge">?</span>'}
-        <span class="encounter-ideal" ${ideal ? `style="color:${ideal.color}"` : ''}>${ideal ? ideal.name : 'Nothing'}</span>
-        ${!carrying && enc.idealId ? `<button class="btn btn-sm" data-action="swap" data-pilgrim="${enc.pilgrimId}">Take</button>` : ''}
-      </div>`;
+  // Encounters on the journey
+  if (arrival.encounters && arrival.encounters.length > 0) {
+    html += `<div class="section" style="text-align:left"><h3>On your journey</h3><div class="encounter-list">`;
+    for (const enc of arrival.encounters) {
+      const encSeed = enc.seed ? SEED_MAP[enc.seed] : null;
+      const carrying = gardener.seed === enc.seed && enc.seed !== null;
+      html += `
+        <div class="encounter-row">
+          ${seedIcon(enc.seed)}
+          <div class="encounter-info">
+            <div>${enc.id}</div>
+            <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
+          </div>
+          ${enc.seed && !carrying
+            ? `<button class="btn btn-sm btn-sage" data-action="take_seed" data-from-id="${enc.id}">Take Seed</button>`
+            : ''}
+        </div>`;
+    }
+    html += `</div></div>`;
   }
 
-  return { render };
-})();
+  html += `<div class="arrival-continue">
+    <button class="btn btn-accent btn-full" data-action="continue">Continue to ${arrival.locationName}</button>
+  </div>`;
+
+  html += `</div>`; // arrival-screen
+  app.innerHTML = html;
+}

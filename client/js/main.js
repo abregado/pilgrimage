@@ -1,49 +1,53 @@
-window.Pilgrim = window.Pilgrim || {};
+import { connect, sendAction } from './network.js';
+import { getState, getTab, setTab } from './state.js';
+import { render } from './render.js';
+import { SEED_MAP } from './seeds.js';
 
-Pilgrim.Main = (() => {
-  let _hardwareUUID = null;
+// Single delegated click handler — attached once, never removed
+document.getElementById('app').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const { action } = btn.dataset;
 
-  function getHardwareUUID() {
-    if (_hardwareUUID) return _hardwareUUID;
-    let uuid = localStorage.getItem('pilgrim_uuid');
-    if (!uuid) {
-      uuid = crypto.randomUUID();
-      localStorage.setItem('pilgrim_uuid', uuid);
+  switch (action) {
+    case 'tab': {
+      setTab(btn.dataset.tab);
+      render();
+      break;
     }
-    _hardwareUUID = uuid;
-    return uuid;
-  }
-
-  async function autoConnect() {
-    const url = localStorage.getItem('pilgrim_server_url') ||
-      (window.location.protocol !== 'file:' ? window.location.host : null);
-    if (!url) return;
-    Pilgrim.State.set({ serverUrl: url });
-    try {
-      await Pilgrim.Network.connect(url, getHardwareUUID());
-      localStorage.setItem('pilgrim_server_url', url);
-    } catch {
-      // Stay on connect screen; user can hit Retry
+    case 'take_origin': {
+      sendAction({ type: 'take_origin' });
+      break;
+    }
+    case 'undo_take': {
+      sendAction({ type: 'undo_take' });
+      break;
+    }
+    case 'sing': {
+      sendAction({ type: 'sing', potId: btn.dataset.potId });
+      break;
+    }
+    case 'pot': {
+      sendAction({ type: 'pot', potId: btn.dataset.potId });
+      break;
+    }
+    case 'walk': {
+      sendAction({ type: 'walk', pathId: btn.dataset.pathId });
+      break;
+    }
+    case 'reverse': {
+      sendAction({ type: 'reverse' });
+      break;
+    }
+    case 'take_seed': {
+      sendAction({ type: 'take_seed', fromId: btn.dataset.fromId });
+      break;
+    }
+    case 'continue': {
+      sendAction({ type: 'continue' });
+      break;
     }
   }
+});
 
-  async function init() {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./sw.js').catch(() => {});
-    }
-
-    document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        Pilgrim.State.set({ activeTab: btn.dataset.tab });
-      });
-    });
-
-    Pilgrim.Screens.Connect.init();
-    Pilgrim.Render.start();
-    await autoConnect();
-  }
-
-  return { init, getHardwareUUID, autoConnect };
-})();
-
-document.addEventListener('DOMContentLoaded', () => Pilgrim.Main.init());
+connect();

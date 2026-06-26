@@ -1,109 +1,38 @@
-window.Pilgrim = window.Pilgrim || {};
+import { getOrCreateDeviceId } from './utils.js';
+import { setState, updateScreenFromState } from './state.js';
+import { render } from './render.js';
 
-Pilgrim.Network = (() => {
-  let _ws = null;
-  let _pollTimer = null;
-  let _pollCount = 0;
-  const FAST_POLL_INTERVAL = 2000;
-  const FAST_POLL_COUNT = 30; // 30 × 2s = 60s
-  const SLOW_POLL_INTERVAL = 60000;
+let ws = null;
 
-  function connect(serverUrl, hardwareUUID) {
-    if (_ws) { _ws.close(); _ws = null; }
+export function connect() {
+  const deviceId = getOrCreateDeviceId();
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${protocol}//${location.host}`);
 
-    const url = serverUrl.startsWith('ws') ? serverUrl : `ws://${serverUrl}`;
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'connect', deviceId }));
+  };
 
-    return new Promise((resolve, reject) => {
-      let settled = false;
-
-      try {
-        _ws = new WebSocket(url);
-      } catch (e) {
-        return reject(e);
-      }
-
-      _ws.onopen = () => {
-        _ws.send(JSON.stringify({ type: 'JOIN', hardwareUUID }));
-      };
-
-      _ws.onmessage = (event) => {
-        let msg;
-        try { msg = JSON.parse(event.data); } catch { return; }
-
-        if (msg.type === 'JOINED') {
-          Pilgrim.State.set({ pilgrimId: msg.pilgrimId, connected: true });
-          if (!settled) { settled = true; resolve(); }
-          return;
-        }
-
-        if (msg.type === 'STATE') {
-          Pilgrim.State.applyServerState(msg.payload);
-          return;
-        }
-
-        if (msg.type === 'ERROR') {
-          console.warn('[pilgrim] server error:', msg.code);
-        }
-      };
-
-      _ws.onclose = () => {
-        Pilgrim.State.set({ connected: false });
-        stopPolling();
-        if (!settled) { settled = true; reject(new Error('Connection closed')); }
-      };
-
-      _ws.onerror = () => {
-        if (!settled) { settled = true; reject(new Error('WebSocket error')); }
-      };
-    });
-  }
-
-  function disconnect() {
-    stopPolling();
-    if (_ws) { _ws.close(); _ws = null; }
-  }
-
-  function send(msg) {
-    if (_ws && _ws.readyState === WebSocket.OPEN) {
-      _ws.send(JSON.stringify(msg));
+  ws.onmessage = (e) => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'state') {
+      setState(msg.data);
+      updateScreenFromState();
+      render();
     }
-  }
+  };
 
-  function requestUpdate() {
-    send({ type: 'REQUEST_UPDATE' });
-  }
+  ws.onclose = () => {
+    setTimeout(connect, 3000);
+  };
 
-  function sendAction(action) {
-    const tick = Pilgrim.State.estimateTick();
-    send({ type: 'ACTION', tickStamp: tick, action });
-    startFastPolling();
-  }
+  ws.onerror = () => {
+    // onclose will fire after onerror
+  };
+}
 
-  function startFastPolling() {
-    stopPolling();
-    _pollCount = 0;
-    _pollTimer = setInterval(() => {
-      _pollCount++;
-      requestUpdate();
-      if (_pollCount >= FAST_POLL_COUNT) {
-        stopPolling();
-        startSlowPolling();
-      }
-    }, FAST_POLL_INTERVAL);
-  }
-
-  function startSlowPolling() {
-    stopPolling();
-    _pollTimer = setInterval(requestUpdate, SLOW_POLL_INTERVAL);
-  }
-
-  function stopPolling() {
-    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
-  }
-
-  function isConnected() {
-    return _ws && _ws.readyState === WebSocket.OPEN;
-  }
-
-  return { connect, disconnect, send, sendAction, requestUpdate, isConnected };
-})();
+export function sendAction(action) {
+  if (!ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({ type: action.type, ...action }));
+}

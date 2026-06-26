@@ -1,127 +1,84 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const { WebSocketServer } = require('ws');
+import express from 'express';
+import { WebSocketServer } from 'ws';
+import { createServer } from 'http';
+import { initState, getState, getGardenerView } from './state.js';
+import { loadState, saveState } from './persistence.js';
+import { startGameLoop } from './gameLoop.js';
+import * as actions from './actions.js';
 
-const { loadState, saveState } = require('./persistence');
-const { createSeed } = require('./seed');
-const {
-  init,
-  getState,
-  registerClient,
-  unregisterClient,
-  queueAction,
-  createPilgrim,
-  sendState,
-} = require('./gameLoop');
-const { findPilgrimByUUID } = require('./state');
-
-const PORT = process.env.PORT || 3001;
-const CLIENT_DIR = path.join(__dirname, '..', 'client');
-
-const MIME = {
-  '.html': 'text/html',
-  '.js':   'text/javascript',
-  '.css':  'text/css',
-  '.json': 'application/json',
-  '.webmanifest': 'application/manifest+json',
-  '.png':  'image/png',
-  '.svg':  'image/svg+xml',
-  '.ico':  'image/x-icon',
-};
-
-const server = http.createServer((req, res) => {
-  let urlPath = req.url.split('?')[0];
-  if (urlPath === '/') urlPath = '/index.html';
-
-  const filePath = path.join(CLIENT_DIR, urlPath);
-
-  if (!filePath.startsWith(CLIENT_DIR)) {
-    res.writeHead(403);
-    return res.end();
-  }
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      if (err.code === 'ENOENT') {
-        fs.readFile(path.join(CLIENT_DIR, 'index.html'), (e2, d2) => {
-          if (e2) { res.writeHead(404); return res.end('Not found'); }
-          res.writeHead(200, { 'Content-Type': 'text/html' });
-          res.end(d2);
-        });
-      } else {
-        res.writeHead(500);
-        res.end();
-      }
-      return;
-    }
-    const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-    res.end(data);
-  });
-});
-
+const app = express();
+const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+// Serve assets and client
+app.use('/assets', express.static('./assets'));
+app.use(express.static('./client'));
+
+// Map: deviceId → ws
+const clients = new Map();
+
+function sendToClient(ws, msg) {
+  if (ws.readyState === 1) ws.send(JSON.stringify(msg));
+}
+
+function broadcast() {
+  for (const [deviceId, ws] of clients) {
+    const view = getGardenerView(deviceId);
+    if (view) sendToClient(ws, { type: 'state', data: view });
+  }
+}
+
 wss.on('connection', (ws) => {
-  let hardwareUUID = null;
+  let deviceId = null;
 
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
+    if (msg.type === 'connect') {
+      deviceId = msg.deviceId;
+      clients.set(deviceId, ws);
+      actions.createOrRestoreGardener(deviceId, getState());
+      saveState(getState());
+      sendToClient(ws, { type: 'state', data: getGardenerView(deviceId) });
+      return;
+    }
+
+    if (!deviceId) return;
+
     const state = getState();
+    let result = { ok: false };
 
-    if (msg.type === 'JOIN') {
-      hardwareUUID = String(msg.hardwareUUID).slice(0, 64);
-      let pilgrim = findPilgrimByUUID(state, hardwareUUID);
-      if (!pilgrim) {
-        pilgrim = createPilgrim(hardwareUUID);
-      }
-      registerClient(hardwareUUID, ws);
-      ws.send(JSON.stringify({ type: 'JOINED', pilgrimId: pilgrim.id }));
-      sendState(ws, pilgrim);
-      return;
-    }
+    if (msg.type === 'sing')        result = actions.sing(deviceId, msg.potId, state);
+    else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, state);
+    else if (msg.type === 'take_origin') result = actions.takeOrigin(deviceId, state);
+    else if (msg.type === 'undo_take')   result = actions.undoTake(deviceId, state);
+    else if (msg.type === 'walk')   result = actions.walk(deviceId, msg.pathId, state);
+    else if (msg.type === 'reverse') result = actions.reverse(deviceId, state);
+    else if (msg.type === 'take_seed') result = actions.takeSeed(deviceId, msg.fromId, state);
+    else if (msg.type === 'continue')   result = actions.continuee(deviceId, state);
+    else if (msg.type === 'poll')   result = { ok: true };
 
-    if (!hardwareUUID) return;
-    const pilgrim = findPilgrimByUUID(state, hardwareUUID);
-    if (!pilgrim) return;
-
-    if (msg.type === 'REQUEST_UPDATE') {
-      sendState(ws, pilgrim);
-      return;
-    }
-
-    if (msg.type === 'ACTION' && msg.action) {
-      queueAction(pilgrim.id, msg.action, (result) => {
-        if (!result.success) {
-          if (ws.readyState === 1) {
-            ws.send(JSON.stringify({ type: 'ERROR', code: result.error, message: result.error }));
-          }
-        }
-      });
+    if (result.ok) {
+      saveState(state);
+      broadcast();
+    } else {
+      sendToClient(ws, { type: 'error', message: result.error });
     }
   });
 
   ws.on('close', () => {
-    if (hardwareUUID) unregisterClient(hardwareUUID);
+    if (deviceId) clients.delete(deviceId);
   });
 
   ws.on('error', () => {
-    if (hardwareUUID) unregisterClient(hardwareUUID);
+    if (deviceId) clients.delete(deviceId);
   });
 });
 
-let initialState = loadState();
-if (!initialState) {
-  initialState = createSeed();
-  saveState(initialState);
-  console.log('Created new game world from seed.');
-}
+// Start game loop
+initState(loadState());
+startGameLoop(getState, saveState, broadcast);
 
-init(initialState);
-
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Pilgrim server → http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => console.log(`Verdant running on http://localhost:${PORT}`));
