@@ -1,5 +1,6 @@
 import { getState } from '../state.js';
 import { SEED_MAP } from '../seeds.js';
+import { renderMeeple } from '../meeple.js';
 
 function seedIcon(seedId) {
   if (!seedId) return `<div class="seed-icon" style="background:#222"></div>`;
@@ -40,9 +41,9 @@ export function renderArrival(app) {
       const carrying = gardener.seed === enc.seed && enc.seed !== null;
       html += `
         <div class="encounter-row">
+          ${renderMeeple(enc.state)}
           ${seedIcon(enc.seed)}
           <div class="encounter-info">
-            <div>${enc.id}</div>
             <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
           </div>
           ${enc.seed && !carrying

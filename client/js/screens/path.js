@@ -2,6 +2,7 @@ import { getState } from '../state.js';
 import { formatDistance, formatDuration } from '../utils.js';
 import { SEED_MAP } from '../seeds.js';
 import { LOCATION_MAP } from '../world.js';
+import { renderMeeple } from '../meeple.js';
 
 function seedIcon(seedId) {
   if (!seedId) return `<div class="seed-icon" style="background:#222"></div>`;
@@ -14,7 +15,7 @@ export function renderPath(app) {
   const state = getState();
   if (!state) return;
 
-  const { gardener, path, tick } = state;
+  const { gardener, path, tick, movementSpeed } = state;
   if (!path) return;
 
   // Destination name
@@ -28,7 +29,7 @@ export function renderPath(app) {
   const pct = (frac * 100).toFixed(1);
 
   const remaining = path.length - path.progress;
-  const ticksLeft = Math.ceil(remaining / 16); // MOVEMENT_SPEED
+  const ticksLeft = Math.ceil(remaining / movementSpeed);
 
   let html = `<div class="main-screen"><div class="screen-content">`;
 
@@ -76,9 +77,9 @@ export function renderPath(app) {
       const carrying = gardener.seed === enc.seed && enc.seed !== null;
       html += `
         <div class="encounter-row">
+          ${renderMeeple(enc.state)}
           ${seedIcon(enc.seed)}
           <div class="encounter-info">
-            <div>${enc.id}</div>
             <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
           </div>
           ${enc.seed && !carrying

@@ -4,7 +4,8 @@
   "type": "module",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "reset": "node -e \"require('fs').rmSync('./server/data/state.json', { force: true }); console.log('State cleared.');\""
   },
   "dependencies": {
     "express": "^4.18.2",

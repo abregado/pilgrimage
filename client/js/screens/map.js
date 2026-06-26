@@ -1,8 +1,12 @@
-import { LOCATIONS, PATHS, LOCATION_MAP, PATH_MAP } from '../world.js';
+import { LOCATIONS, PATHS, LOCATION_MAP } from '../world.js';
+import { SEEDS } from '../seeds.js';
 
 const SVG_W = 800;
 const SVG_H = 900;
 const LOC_R  = 10;
+
+// origin seed keyed by locationId
+const originByLoc = Object.fromEntries(SEEDS.filter(s => s.locationId).map(s => [s.locationId, s]));
 
 export function renderMap(container, state) {
   if (!state) {
@@ -13,47 +17,59 @@ export function renderMap(container, state) {
   const { gardener, path: pathView } = state;
   const wanderings = (state.record && state.record.wanderings) || [];
 
-  // Visited locations: all in wanderings
   const visited = new Set(wanderings);
-
-  // Current location
   const currentLocId = gardener.locationId;
   if (currentLocId) visited.add(currentLocId);
 
-  // Adjacent: connected to visited but not visited
+  // Adjacent: connected to any visited but not itself visited
   const adjacent = new Set();
   for (const p of PATHS) {
     if (visited.has(p.fromId)) adjacent.add(p.toId);
     if (visited.has(p.toId)) adjacent.add(p.fromId);
   }
-  // Remove visited from adjacent
   for (const id of visited) adjacent.delete(id);
 
-  // Visible paths: at least one end visited
+  // Walkable from current position: directly connected, pilgrim resting
+  const walkable = new Map(); // locId -> pathId
+  if (gardener.state === 'resting' && currentLocId) {
+    for (const p of PATHS) {
+      if (p.fromId === currentLocId) walkable.set(p.toId, p.id);
+      if (p.toId === currentLocId) walkable.set(p.fromId, p.id);
+    }
+  }
+
   const visiblePaths = PATHS.filter(p => visited.has(p.fromId) || visited.has(p.toId));
 
-  // Build SVG
   let svg = `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" class="world-map" xmlns="http://www.w3.org/2000/svg">`;
 
   // Paths
   for (const p of visiblePaths) {
     const from = LOCATION_MAP[p.fromId];
-    const to = LOCATION_MAP[p.toId];
+    const to   = LOCATION_MAP[p.toId];
     if (!from || !to) continue;
-    const cls = (visited.has(p.fromId) || visited.has(p.toId)) ? 'map-path visited' : 'map-path';
-    svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="${cls}"/>`;
+    svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="map-path visited"/>`;
   }
 
-  // Locations
+  // Location circles
   for (const loc of LOCATIONS) {
-    const isVisited = visited.has(loc.id);
+    const isVisited  = visited.has(loc.id);
     const isAdjacent = adjacent.has(loc.id);
     if (!isVisited && !isAdjacent) continue;
 
-    const cls = isVisited ? 'map-loc visited' : 'map-loc adjacent';
-    svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}"/>`;
-    if (isVisited) {
-      svg += `<text x="${loc.x}" y="${loc.y + LOC_R + 12}" class="map-label">${loc.name}</text>`;
+    const isCurrent  = loc.id === currentLocId;
+    const isWalkable = walkable.has(loc.id);
+
+    let cls = isVisited ? 'map-loc visited' : 'map-loc adjacent';
+    if (isWalkable) cls += ' walkable';
+
+    const attrs = `data-loc-id="${loc.id}"` +
+      (isWalkable ? ` data-action="walk" data-path-id="${walkable.get(loc.id)}"` : '');
+
+    svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
+
+    // Permanent name label only for current location
+    if (isCurrent) {
+      svg += `<text x="${loc.x}" y="${loc.y + LOC_R + 14}" class="map-label">${loc.name}</text>`;
     }
   }
 
@@ -76,10 +92,47 @@ export function renderMap(container, state) {
 
   if (youX !== null && youY !== null) {
     svg += `<circle cx="${youX.toFixed(1)}" cy="${youY.toFixed(1)}" r="7" class="map-you"/>`;
-    svg += `<text x="${youX.toFixed(1)}" y="${(youY - 14).toFixed(1)}" class="map-label" style="fill:#c9a84c;font-size:11px">You</text>`;
+    svg += `<text x="${youX.toFixed(1)}" y="${(youY - 14).toFixed(1)}" class="map-label map-you-label">You</text>`;
   }
 
   svg += `</svg>`;
 
-  container.innerHTML = `<div class="map-wrap">${svg}</div>`;
+  container.innerHTML = `<div class="map-wrap"><div class="map-tooltip" hidden></div>${svg}</div>`;
+
+  // Hover tooltip
+  const svgEl   = container.querySelector('.world-map');
+  const tooltip = container.querySelector('.map-tooltip');
+  const wrap    = container.querySelector('.map-wrap');
+
+  svgEl.addEventListener('mouseover', (e) => {
+    const el = e.target.closest('[data-loc-id]');
+    if (!el) return;
+
+    const locId = el.dataset.locId;
+    const loc   = LOCATION_MAP[locId];
+    if (!loc) return;
+
+    const isVis = visited.has(locId);
+    const seed  = originByLoc[locId];
+    const label = isVis
+      ? `${seed?.symbol ?? ''} ${loc.name}`.trim()
+      : '?';
+
+    // Convert SVG coords → overlay pixels
+    const svgRect  = svgEl.getBoundingClientRect();
+    const wrapRect = wrap.getBoundingClientRect();
+    const scaleX   = svgRect.width  / SVG_W;
+    const scaleY   = svgRect.height / SVG_H;
+    const px = loc.x * scaleX + (svgRect.left - wrapRect.left);
+    const py = loc.y * scaleY + (svgRect.top  - wrapRect.top);
+
+    tooltip.textContent = label;
+    tooltip.removeAttribute('hidden');
+    tooltip.style.left = `${px}px`;
+    tooltip.style.top  = `${py - 36}px`;
+  });
+
+  svgEl.addEventListener('mouseleave', () => {
+    tooltip.setAttribute('hidden', '');
+  });
 }

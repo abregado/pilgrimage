@@ -1,0 +1,32 @@
+In the Location screen the Nursery should be directly below the Pots list.
+
+Rules should be specific to one or two types of plant
+
+Rules about patterns for different combinations: eg// A Mirewort next to a Quietbranch. For these we assume that Pot 0 is adjacent to the last Pot at the Location.
+
+If you have decorated a Pot, there needs to be a button to undecorate it.
+
+If a Pot gets its seed changed, we still need to clear all decorations.
+
+Pilgrims regenerate energy every ENERGY_REGEN_TICKS ticks. Make it 60 seconds to start with.
+
+In the Location screen, put the Carrying widget at the bottom, directly above the Travel wdiget.
+
+So the order for the Widgets is
+Pots
+Nursery
+Carrying
+Travel
+
+The Carrying widget should include buttons to swap what is carried. The same options are available as the Nursery
+
+The nursery should show all seeds that are being carried by any Pilgrim at this location, the core seed, and the seeds of any plant that is older than a seedling.
+
+In the Pot display, show the time until the next growth stage.
+
+In the Pilgrim Record, list all seen plants in a vertical list with each row having left to right: Seed Icon, Name, checkbox if seed seen, checkbox if seedling seen, checkbox if grown seen, checkbox if fruiting seen, checkbox if dead seen, checkbox if core seed location visited
+
+SEEDLING_TICKS = 30 minutes
+GROWN_TICKS    = 6 hours
+FRUITING_TICKS = 1 week
+DEAD_TICKS     = 1 month 

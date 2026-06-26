@@ -1,0 +1,31 @@
+Rules have levels.
+Level 1 rules are: Discovered 10 locations where [plant type] is planted.
+15 variants one for each plant type.
+
+Level 2 rules are:
+Discovered 10 locations where [plant type] and [plant type 2] are both planted.
+
+Discovered 5 locations where [plant type] and [plant type 2] are both planted adjacent to each other.
+
+Discovered 8 locations where [plant type] is planted next to an empty pot.
+
+Level 3 rules are:
+Discovered 5 locations where two [plant type] are planted with a [plant type 2] between them.
+
+Discovered 10 locations where [plant type] is planted at least 3 times.
+
+
+Pilgrims always have 4 Rules. 2x Level 1 rule, 1x Level 2 rule and 1x Level 3 rule.
+
+New Pilgrims start with all rules filled to match the origin seed of their starting locations. At least one of the plants in each rule is the origin seed of their stating location.
+
+In the Location screen, put Vision below Nursery.
+In the Location screen, at the top, put the meeple midget showing current poputation.
+
+THe Nursery also need to contain the seed that I am carrying if i am carrying one. AND all the seeds that are carried by Pilgrims resting here.
+
+
+Clicking a seed in the Nursery should not change what I am carrying, only decide what will get planted when I click Place Seed on a Pot.
+
+Lets modify the display of the Pots widget so it shows the pots arranged equidistant around the circumferance of a circle. The Pots Widget should be square. Pots are represented by a circle with the growth state png on top, and the seed symbol next to it on the inside of the circle (so closer to the center, but just a bit). When you click a Pot, then its info and the buttons to plant something/decorate, show up in the center of the circle.
+

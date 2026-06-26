@@ -49,14 +49,15 @@ wss.on('connection', (ws) => {
     const state = getState();
     let result = { ok: false };
 
-    if (msg.type === 'sing')        result = actions.sing(deviceId, msg.potId, state);
+    if (msg.type === 'decorate')    result = actions.decorate(deviceId, msg.potId, state);
+    else if (msg.type === 'undecorate') result = actions.undecorate(deviceId, msg.potId, state);
     else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, state);
-    else if (msg.type === 'take_origin') result = actions.takeOrigin(deviceId, state);
-    else if (msg.type === 'undo_take')   result = actions.undoTake(deviceId, state);
+    else if (msg.type === 'swap')   result = actions.swap(deviceId, msg.seedId, state);
     else if (msg.type === 'walk')   result = actions.walk(deviceId, msg.pathId, state);
     else if (msg.type === 'reverse') result = actions.reverse(deviceId, state);
     else if (msg.type === 'take_seed') result = actions.takeSeed(deviceId, msg.fromId, state);
     else if (msg.type === 'continue')   result = actions.continuee(deviceId, state);
+    else if (msg.type === 'delete_rule') result = actions.deleteRule(deviceId, msg.ruleId, state);
     else if (msg.type === 'poll')   result = { ok: true };
 
     if (result.ok) {

@@ -1,7 +1,7 @@
-import { SEEDS, SEED_MAP } from './seeds.js';
+import { SEEDS } from './seeds.js';
 import { PATH_MAP, LOCATION_MAP } from './world.js';
-import { TENDING_DURATION, SETTLING_DURATION } from './constants.js';
-import { getCherishedPot } from './state.js';
+import { TENDING_DURATION, SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS } from './constants.js';
+import { pickNewRule } from './rules.js';
 
 function fail(error) {
   return { ok: false, error };
@@ -40,7 +40,13 @@ export function createOrRestoreGardener(deviceId, state) {
   // Build empty seed log
   const seedLog = {};
   for (const seed of SEEDS) {
-    seedLog[seed.id] = { seed: false, plant: false, origin: false, cherished: false };
+    seedLog[seed.id] = { seed: false, seedling: false, grown: false, fruiting: false, dead: false };
+  }
+
+  const rules = [];
+  for (let i = 0; i < INITIAL_RULE_SLOTS; i++) {
+    const rule = pickNewRule(rules);
+    if (rule) rules.push(rule);
   }
 
   state.gardeners[deviceId] = {
@@ -52,22 +58,26 @@ export function createOrRestoreGardener(deviceId, state) {
     progress: 0,
     seed: null,
     tendingUntil: null,
-    justTookOrigin: false,
     encounteredThisTrip: [],
     arrivedEncounters: null,
     createdTick: state.tick,
     lastActiveTick: state.tick,
+    energy: BASE_ENERGY_MAX,
+    energyMax: BASE_ENERGY_MAX,
+    rules,
+    ruleSlots: INITIAL_RULE_SLOTS,
+    speedBonus: 1.0,
     record: {
       wanderings: [spawnLocation],
       seedLog,
-      singerPots: [],
+      decoratedPots: [],
     },
   };
 
   return ok();
 }
 
-export function sing(deviceId, potId, state) {
+export function decorate(deviceId, potId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting' && gardener.state !== 'tending') return fail('Must be at a location');
@@ -76,30 +86,17 @@ export function sing(deviceId, potId, state) {
   const locData = state.locations[gardener.locationId];
   if (!locData) return fail('Location not found');
 
-  // Find the pot in this location
   const pot = locData.pots.find(p => p.id === potId);
   if (!pot) return fail('Pot not found at this location');
   if (!pot.seedId) return fail('Pot is empty');
 
-  // Remove gardener from ALL pots at this location
-  for (const p of locData.pots) {
-    const idx = p.singers.indexOf(gardener.id);
-    if (idx !== -1) {
-      p.singers.splice(idx, 1);
-      // Remove from singerPots record
-      const spIdx = gardener.record.singerPots.indexOf(p.id);
-      if (spIdx !== -1) gardener.record.singerPots.splice(spIdx, 1);
-    }
-  }
-
   // Add to this pot
-  if (!pot.singers.includes(gardener.id)) {
-    pot.singers.push(gardener.id);
+  if (!pot.decorators.includes(gardener.id)) {
+    pot.decorators.push(gardener.id);
   }
 
-  // Update singerPots record
-  if (!gardener.record.singerPots.includes(potId)) {
-    gardener.record.singerPots.push(potId);
+  if (!gardener.record.decoratedPots.includes(potId)) {
+    gardener.record.decoratedPots.push(potId);
   }
 
   gardener.lastActiveTick = state.tick;
@@ -110,7 +107,6 @@ export function pot(deviceId, potId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
-  if (!gardener.seed) return fail('Not carrying a seed');
   if (!gardener.locationId) return fail('Not at a location');
 
   const locData = state.locations[gardener.locationId];
@@ -119,69 +115,77 @@ export function pot(deviceId, potId, state) {
   const potObj = locData.pots.find(p => p.id === potId);
   if (!potObj) return fail('Pot not found at this location');
 
-  // Check cherished
-  const cherishedId = getCherishedPot(gardener.locationId);
-  if (potObj.id === cherishedId) return fail('Cannot pot into a cherished pot');
+  // No seed carried → clear the pot
+  if (!gardener.seed) {
+    if (!potObj.seedId) return fail('Pot is already empty');
+    potObj.seedId = null;
+    potObj.lastPlantedTick = null;
+    potObj.decorators = [];
+    potObj.settlingUntil = null;
+    gardener.lastActiveTick = state.tick;
+    return ok();
+  }
 
-  // Check settling
+  // Seed carried → place it
+  if (gardener.energy < ENERGY_COST_PLANT) return fail('Not enough energy');
   if (potObj.settlingUntil !== null && potObj.settlingUntil > state.tick) {
     return fail('Pot is still settling');
   }
 
-  // Remove all singers from pot
-  // Also remove this pot from their singerPots records
-  for (const singerId of potObj.singers) {
-    // Find the gardener with this public id
-    for (const [dId, g] of Object.entries(state.gardeners)) {
-      if (g.id === singerId) {
-        const spIdx = g.record.singerPots.indexOf(potId);
-        if (spIdx !== -1) g.record.singerPots.splice(spIdx, 1);
-        break;
-      }
-    }
-  }
-  potObj.singers = [];
+  // Clear any existing decorations when seed changes
+  clearPotDecorators(potObj, state);
 
   potObj.seedId = gardener.seed;
+  potObj.lastPlantedTick = state.tick;
   potObj.settlingUntil = state.tick + SETTLING_DURATION;
 
+  gardener.energy -= ENERGY_COST_PLANT;
   gardener.state = 'tending';
   gardener.tendingUntil = state.tick + TENDING_DURATION;
-  gardener.seed = null;
   gardener.lastActiveTick = state.tick;
 
   return ok();
 }
 
-export function takeOrigin(deviceId, state) {
+export function swap(deviceId, targetSeedId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
-  if (!gardener.locationId) return fail('Not at a location');
 
-  // Find origin seed for this location
-  const originSeed = SEEDS.find(s => s.locationId === gardener.locationId);
-  if (!originSeed) return fail('No origin seed for this location');
-
-  gardener.seed = originSeed.id;
-  gardener.justTookOrigin = true;
-  gardener.lastActiveTick = state.tick;
-
-  // Mark 'seed' discovered
-  if (gardener.record.seedLog[originSeed.id]) {
-    gardener.record.seedLog[originSeed.id].seed = true;
+  // Empty/null = drop carried seed
+  if (!targetSeedId) {
+    gardener.seed = null;
+    gardener.lastActiveTick = state.tick;
+    return ok();
   }
 
-  return ok();
-}
+  if (!gardener.locationId) return fail('Not at a location');
 
-export function undoTake(deviceId, state) {
-  const gardener = state.gardeners[deviceId];
-  if (!gardener) return fail('Gardener not found');
-  if (!gardener.justTookOrigin) return fail('Nothing to undo');
+  const locData = state.locations[gardener.locationId];
+  if (!locData) return fail('Location not found');
 
-  gardener.seed = null;
-  gardener.justTookOrigin = false;
+  // Build seedPool inline (same logic as the view)
+  const originSeed = SEEDS.find(s => s.locationId === gardener.locationId);
+  const poolSet = new Set();
+  if (originSeed) poolSet.add(originSeed.id);
+  for (const pot of locData.pots) {
+    if (pot.seedId) poolSet.add(pot.seedId);
+  }
+  for (const [dId, g] of Object.entries(state.gardeners)) {
+    if (dId !== deviceId && g.locationId === gardener.locationId &&
+        (g.state === 'resting' || g.state === 'tending') && g.seed) {
+      poolSet.add(g.seed);
+    }
+  }
+
+  if (!poolSet.has(targetSeedId)) return fail('Seed not available here');
+
+  gardener.seed = targetSeedId;
+  gardener.lastActiveTick = state.tick;
+
+  if (gardener.record.seedLog[targetSeedId]) {
+    gardener.record.seedLog[targetSeedId].seed = true;
+  }
 
   return ok();
 }
@@ -204,7 +208,6 @@ export function walk(deviceId, pathId, state) {
   gardener.state = 'walking';
   gardener.locationId = null;
   gardener.encounteredThisTrip = [];
-  gardener.justTookOrigin = false;
   gardener.lastActiveTick = state.tick;
 
   return ok();
@@ -256,7 +259,6 @@ export function takeSeed(deviceId, fromId, state) {
   }
 
   gardener.seed = encounteredGardener.seed; // copy, not remove
-  gardener.justTookOrigin = false;
 
   // Mark 'seed' discovered
   if (gardener.record.seedLog[encounteredGardener.seed]) {
@@ -277,5 +279,56 @@ export function continuee(deviceId, state) {
   gardener.arrivedEncounters = null;
   gardener.lastActiveTick = state.tick;
 
+  return ok();
+}
+
+function clearPotDecorators(potObj, state) {
+  for (const decoratorId of potObj.decorators) {
+    for (const g of Object.values(state.gardeners)) {
+      if (g.id === decoratorId) {
+        const idx = g.record.decoratedPots.indexOf(potObj.id);
+        if (idx !== -1) g.record.decoratedPots.splice(idx, 1);
+        break;
+      }
+    }
+  }
+  potObj.decorators = [];
+}
+
+export function undecorate(deviceId, potId, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  if (gardener.state !== 'resting' && gardener.state !== 'tending') return fail('Must be at a location');
+  if (!gardener.locationId) return fail('Not at a location');
+
+  const locData = state.locations[gardener.locationId];
+  if (!locData) return fail('Location not found');
+
+  const pot = locData.pots.find(p => p.id === potId);
+  if (!pot) return fail('Pot not found at this location');
+
+  const idx = pot.decorators.indexOf(gardener.id);
+  if (idx === -1) return fail('Not decorated by you');
+
+  pot.decorators.splice(idx, 1);
+  const dpIdx = gardener.record.decoratedPots.indexOf(potId);
+  if (dpIdx !== -1) gardener.record.decoratedPots.splice(dpIdx, 1);
+
+  gardener.lastActiveTick = state.tick;
+  return ok();
+}
+
+export function deleteRule(deviceId, ruleId, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  const rule = (gardener.rules || []).find(r => r.id === ruleId);
+  if (!rule) return fail('Rule not found');
+  if (rule.deletedTick !== null) return fail('Rule already refreshing');
+  if (rule.completed) {
+    gardener.speedBonus = Math.round(gardener.speedBonus / 1.02 * 1000) / 1000;
+  }
+  rule.deletedTick = state.tick;
+  rule.refreshAt = state.tick + RULE_REFRESH_TICKS;
+  gardener.lastActiveTick = state.tick;
   return ok();
 }

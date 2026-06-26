@@ -15,16 +15,16 @@ document.getElementById('app').addEventListener('click', (e) => {
       render();
       break;
     }
-    case 'take_origin': {
-      sendAction({ type: 'take_origin' });
+    case 'swap': {
+      sendAction({ type: 'swap', seedId: btn.dataset.seedId });
       break;
     }
-    case 'undo_take': {
-      sendAction({ type: 'undo_take' });
+    case 'decorate': {
+      sendAction({ type: 'decorate', potId: btn.dataset.potId });
       break;
     }
-    case 'sing': {
-      sendAction({ type: 'sing', potId: btn.dataset.potId });
+    case 'undecorate': {
+      sendAction({ type: 'undecorate', potId: btn.dataset.potId });
       break;
     }
     case 'pot': {
@@ -45,6 +45,10 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'continue': {
       sendAction({ type: 'continue' });
+      break;
+    }
+    case 'delete_rule': {
+      sendAction({ type: 'delete_rule', ruleId: btn.dataset.ruleId });
       break;
     }
   }

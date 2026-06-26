@@ -1,3 +1,5 @@
+const STAGES = { seed: '', seedling: '', grown: '', fruiting: '', dead: '' };
+
 export const SEEDS = [
   {
     id: 'velour_bloom',
@@ -5,6 +7,8 @@ export const SEEDS = [
     description: 'A deep-petalled flower with velvety purple hues, warm to the touch even in winter.',
     color: '#7B3F8C',
     locationId: 'the_glasshouse',
+    symbol: '✿',
+    stages: { ...STAGES },
   },
   {
     id: 'cinder_fern',
@@ -12,6 +16,8 @@ export const SEEDS = [
     description: 'A hardy fern with ashen fronds that curl at the edges like cooling embers.',
     color: '#9E9E9E',
     locationId: 'the_fernery',
+    symbol: '⌁',
+    stages: { ...STAGES },
   },
   {
     id: 'mirewort',
@@ -19,6 +25,8 @@ export const SEEDS = [
     description: 'A moisture-loving plant that roots in dark water and breathes clean air upward.',
     color: '#2E6B3E',
     locationId: 'the_bogwood',
+    symbol: '≋',
+    stages: { ...STAGES },
   },
   {
     id: 'stonecress',
@@ -26,6 +34,8 @@ export const SEEDS = [
     description: 'Pale clusters that bloom in cracks and crevices, indifferent to cold stone.',
     color: '#BDBDBD',
     locationId: 'the_terrace',
+    symbol: '◻',
+    stages: { ...STAGES },
   },
   {
     id: 'ember_weed',
@@ -33,6 +43,8 @@ export const SEEDS = [
     description: 'A sharp crimson weed that thrives in cold, dry air, its tips perpetually warm.',
     color: '#B71C1C',
     locationId: 'the_coldhouse',
+    symbol: '✦',
+    stages: { ...STAGES },
   },
   {
     id: 'wanderbloom',
@@ -40,6 +52,8 @@ export const SEEDS = [
     description: 'An unruly orange flower that spreads its seeds on the slightest breeze.',
     color: '#E67E22',
     locationId: 'the_nursery',
+    symbol: '❁',
+    stages: { ...STAGES },
   },
   {
     id: 'goldthread',
@@ -47,6 +61,8 @@ export const SEEDS = [
     description: 'Thin yellow filaments that weave between other plants, connecting root systems.',
     color: '#F9A825',
     locationId: 'the_orchard',
+    symbol: '✵',
+    stages: { ...STAGES },
   },
   {
     id: 'salthorn',
@@ -54,6 +70,8 @@ export const SEEDS = [
     description: 'A pale, spiny succulent adapted to mineral-rich, arid ground.',
     color: '#F5F0DC',
     locationId: 'the_salt_flats',
+    symbol: '⋄',
+    stages: { ...STAGES },
   },
   {
     id: 'rainfall_lily',
@@ -61,6 +79,8 @@ export const SEEDS = [
     description: 'A tall blue lily that blooms only after heavy rain, holding water in its cup.',
     color: '#1565C0',
     locationId: 'the_cutting_garden',
+    symbol: '✧',
+    stages: { ...STAGES },
   },
   {
     id: 'quietbranch',
@@ -68,6 +88,8 @@ export const SEEDS = [
     description: 'A slow-growing shrub whose stems never creak, even in high wind.',
     color: '#78909C',
     locationId: 'the_walled_garden',
+    symbol: '❧',
+    stages: { ...STAGES },
   },
   {
     id: 'thornwhisper',
@@ -75,6 +97,8 @@ export const SEEDS = [
     description: 'Dense, pale-thorned canes that make a faint sound when air moves through them.',
     color: '#B0BEC5',
     locationId: 'the_thicket',
+    symbol: '⋈',
+    stages: { ...STAGES },
   },
   {
     id: 'glassroot',
@@ -82,6 +106,8 @@ export const SEEDS = [
     description: 'A translucent, wavering root-plant that grows toward underground light.',
     color: '#4FC3F7',
     locationId: 'the_undercroft',
+    symbol: '◈',
+    stages: { ...STAGES },
   },
   {
     id: 'ironmoss',
@@ -89,6 +115,8 @@ export const SEEDS = [
     description: 'A dense, dark moss that clings to high branches and filters morning mist.',
     color: '#546E7A',
     locationId: 'the_canopy',
+    symbol: '♧',
+    stages: { ...STAGES },
   },
   {
     id: 'duskbell',
@@ -96,6 +124,8 @@ export const SEEDS = [
     description: 'Deep violet bell-flowers that open only at twilight, releasing a cool scent.',
     color: '#4527A0',
     locationId: 'the_still_pool',
+    symbol: '◆',
+    stages: { ...STAGES },
   },
   {
     id: 'murmuring_sage',
@@ -103,6 +133,8 @@ export const SEEDS = [
     description: 'A soft-leaved sage whose rustling sounds like distant conversation.',
     color: '#90A4AE',
     locationId: 'the_seedbank',
+    symbol: '❦',
+    stages: { ...STAGES },
   },
 ];
 
