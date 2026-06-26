@@ -16,7 +16,7 @@ const {
 } = require('./gameLoop');
 const { findPilgrimByUUID } = require('./state');
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const CLIENT_DIR = path.join(__dirname, '..', 'client');
 
 const MIME = {
@@ -122,6 +122,6 @@ if (!initialState) {
 
 init(initialState);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Pilgrim server → http://localhost:${PORT}`);
 });

@@ -76,31 +76,9 @@ Pilgrim.Screens.Pilgrim = (() => {
       html += `</div></section>`;
     }
 
-    // Server / reconnect
-    html += `<section class="section server-section">
-      <h3>Server</h3>
-      <p class="muted server-url-display">${state.serverUrl || ''}</p>
-      <input type="text" id="reconnect-url" class="input" placeholder="ws://..." value="${state.serverUrl || ''}">
-      <button class="btn btn-sm" id="reconnect-btn">Change &amp; Reconnect</button>
-    </section>`;
-
     html += `</div>`;
 
     document.getElementById('tab-pilgrim').innerHTML = html;
-
-    document.getElementById('reconnect-btn').addEventListener('click', async () => {
-      const url = document.getElementById('reconnect-url').value.trim();
-      if (!url) return;
-      Pilgrim.Network.disconnect();
-      try {
-        const uuid = Pilgrim.Main.getHardwareUUID();
-        await Pilgrim.Network.connect(url, uuid);
-        localStorage.setItem('pilgrim_server_url', url);
-        Pilgrim.State.set({ serverUrl: url });
-      } catch {
-        alert('Could not reconnect. Check the address.');
-      }
-    });
   }
 
   return { render };
