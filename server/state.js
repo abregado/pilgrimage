@@ -24,7 +24,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 10;
+const CURRENT_VERSION = 11;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
@@ -40,10 +40,11 @@ export function computeEnergyMax(gardener, state) {
 }
 
 function migrate(loaded) {
-  const v = loaded.version || 1;
+  let v = loaded.version || 1;
   if (v === CURRENT_VERSION) return loaded;
+
   if (v === 9) {
-    console.log(`State version 9 → 10: patching rule templates`);
+    console.log('Migrating v9 → v10: patching rule templates');
     for (const gardener of Object.values(loaded.gardeners)) {
       if (gardener.rules) {
         for (const rule of gardener.rules) {
@@ -57,11 +58,24 @@ function migrate(loaded) {
         }
       }
     }
-    loaded.version = CURRENT_VERSION;
-    return loaded;
+    v = 10;
+    loaded.version = 10;
   }
-  console.log(`State version ${v} → ${CURRENT_VERSION}: rebuilding fresh state`);
-  return null;
+
+  if (v === 10) {
+    console.log('Migrating v10 → v11: adding travelQueue');
+    for (const gardener of Object.values(loaded.gardeners)) {
+      if (!gardener.travelQueue) gardener.travelQueue = [];
+    }
+    v = 11;
+    loaded.version = 11;
+  }
+
+  if (v !== CURRENT_VERSION) {
+    console.log(`State version ${v} → ${CURRENT_VERSION}: rebuilding fresh state`);
+    return null;
+  }
+  return loaded;
 }
 
 export function initState(loaded) {
@@ -253,6 +267,7 @@ export function getGardenerView(deviceId) {
       rules: rulesView,
       availableSeeds: gardener.availableSeeds ?? null,
       locationMemory: gardener.locationMemory ?? {},
+      travelQueue: gardener.travelQueue ?? [],
     },
     location: locationView,
     path: pathView,

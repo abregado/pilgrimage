@@ -57,11 +57,78 @@ function timeToNextStage(lastPlantedTick, currentTick) {
   return null;
 }
 
+function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) {
+  const frac = Math.min(1, path.progress / path.length);
+  const remaining = path.length - path.progress;
+  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
+  const ticksLeft = Math.ceil(remaining / effectiveSpeed);
+
+  // Fixed orientation: path.fromId on left, path.toId on right
+  const fromName = path.fromName || path.fromId;
+  const toName   = path.toName   || path.toId;
+
+  // Determine direction and meeple position along the bezier
+  const goingRight = path.pathFrom === path.fromId;
+  const t = goingRight ? frac : (1 - frac);
+
+  // Quadratic bezier P0=(20,40) P1=(150,14) P2=(280,40)
+  const mx = Math.round((1-t)*(1-t)*20 + 2*(1-t)*t*150 + t*t*280);
+  const my = Math.round((1-t)*(1-t)*40 + 2*(1-t)*t*14 + t*t*40);
+
+  const clr  = '#c9a84c';
+  const pClr = '#7a5c2e';
+
+  const arrowRight = `<polygon points="${mx+8},${my-9} ${mx+15},${my-5} ${mx+8},${my-1}" fill="${clr}"/>`;
+  const arrowLeft  = `<polygon points="${mx-8},${my-9} ${mx-15},${my-5} ${mx-8},${my-1}" fill="${clr}"/>`;
+
+  const svg = `
+    <svg viewBox="0 0 300 80" class="path-visual-svg" xmlns="http://www.w3.org/2000/svg">
+      <path d="M 20 40 Q 150 14 280 40"
+            stroke="${pClr}" stroke-width="3" stroke-dasharray="7,5"
+            fill="none" stroke-linecap="round"/>
+      <line x1="13" y1="33" x2="27" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="27" y1="33" x2="13" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="273" y1="33" x2="287" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="287" y1="33" x2="273" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
+      <polygon points="${mx-5},${my+3} ${mx+5},${my+3} ${mx},${my+13}" fill="${clr}"/>
+      <circle cx="${mx}" cy="${my-5}" r="6" fill="${clr}"/>
+      ${goingRight ? arrowRight : arrowLeft}
+    </svg>`;
+
+  return `
+    <div class="path-visual-wrap">
+      <div class="path-visual-labels">
+        <span>${fromName}</span><span>${toName}</span>
+      </div>
+      ${svg}
+      <div class="path-visual-eta">${formatDistance(Math.max(0, remaining))} remaining · ~${formatDuration(ticksLeft)}</div>
+    </div>`;
+}
+
+function renderSeedPicker(seeds, currentSeed, promptText) {
+  if (!seeds || seeds.length === 0) return '';
+  let html = `<div class="section">`;
+  if (promptText) html += `<p class="seed-carry-prompt">${promptText}</p>`;
+  html += `<div class="nursery-grid">`;
+  for (const seedId of seeds) {
+    const seed = SEED_MAP[seedId];
+    const color = seed ? seed.color : '#666';
+    const isSelected = currentSeed === seedId;
+    html += `
+      <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
+        data-action="pick_seed" data-seed-id="${seedId}"
+        ${isSelected ? 'disabled' : ''}>
+        ${seedIcon(seedId)}
+        <span class="nursery-seed-name" style="color:${color}">${seed ? seed.name : seedId}</span>
+      </button>`;
+  }
+  html += `</div></div>`;
+  return html;
+}
+
 function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySeedId) {
   const n = pots.length;
-  // Radius as % of container for pot centres
   const R  = 36;
-  // Radius for seed symbol (outside the pot circles)
   const Rs = 48;
 
   let html = `<div class="pots-wheel">`;
@@ -79,7 +146,6 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     const color = pot.seedId ? seedColor(pot.seedId) : null;
     const sym   = pot.seedId ? seedSymbol(pot.seedId) : null;
 
-    // Decoration dots (positioned around pot circle circumference)
     let decDots = '';
     if (pot.decoratorCount > 0) {
       const dotR = 33;
@@ -87,14 +153,12 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
         const da = (d * 2 * Math.PI / pot.decoratorCount) - Math.PI / 2;
         const dx = Math.round(Math.cos(da) * dotR * 10) / 10;
         const dy = Math.round(Math.sin(da) * dotR * 10) / 10;
-        // If player decorated, last dot uses distinct color; others alternate two reds
         const isPlayerDot = pot.iDecorated && d === pot.decoratorCount - 1;
         const dotClass = isPlayerDot ? 'dec-dot dec-dot-mine' : `dec-dot dec-dot-${d % 2}`;
         decDots += `<div class="${dotClass}" style="left:calc(50% + ${dx}px);top:calc(50% + ${dy}px)"></div>`;
       }
     }
 
-    // Pot circle
     html += `
       <button class="pot-item${isSelected ? ' selected' : ''}"
         style="left:calc(50% + ${px}%);top:calc(50% + ${py}%)"
@@ -106,7 +170,6 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
         ${decDots}
       </button>`;
 
-    // Seed symbol floated toward centre
     if (sym) {
       html += `
         <div class="pot-symbol" style="left:calc(50% + ${sx}%);top:calc(50% + ${sy}%);color:${color}">
@@ -115,7 +178,6 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     }
   }
 
-  // Centre panel
   html += `<div class="pots-center">`;
 
   if (selectedPotId) {
@@ -139,7 +201,6 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
       }
 
       if (gardener.state === 'resting') {
-        // Plant button — uses the selected nursery seed
         if (selectedNurserySeedId && pot.settlingUntil === null) {
           const canPlant = gardener.energy > 0;
           const name = seedName(selectedNurserySeedId);
@@ -147,11 +208,9 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
             ? `<button class="btn btn-sm btn-accent" data-action="pot" data-pot-id="${pot.id}">Plant ${name}</button>`
             : `<button class="btn btn-sm" disabled title="No energy">Plant ${name}</button>`;
         }
-        // Clear button — when no planting seed is selected and pot has content
         if (!selectedNurserySeedId && pot.seedId) {
           html += `<button class="btn btn-sm btn-danger" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear</button>`;
         }
-        // Decorate / undecorate
         if (pot.seedId) {
           if (pot.iDecorated) {
             html += `<button class="btn btn-sm btn-muted" data-action="undecorate" data-pot-id="${pot.id}">Undecorate</button>`;
@@ -179,7 +238,7 @@ export function renderLocation(app) {
     return;
   }
 
-  const { gardener, location, tick, movementSpeed } = state;
+  const { gardener, location, path, tick, movementSpeed, rulesSpeedBonus } = state;
 
   const tabBar = `
     <nav class="tab-bar">
@@ -201,6 +260,55 @@ export function renderLocation(app) {
     return;
   }
 
+  // ── Walking state: show travel content in Location tab ────────────────────
+  if (gardener.state === 'walking' && path) {
+    const destId   = path.pathFrom === path.fromId ? path.toId : path.fromId;
+    const destName = (LOCATION_MAP[destId] || {}).name || destId;
+
+    let html = `<div class="main-screen"><div class="screen-content">`;
+
+    html += `<div class="location-header"><h2>Travelling to ${destName}</h2></div>`;
+
+    html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus);
+
+    if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
+      html += renderSeedPicker(
+        gardener.availableSeeds,
+        gardener.seed,
+        `Which seed do you wish to carry with you into ${destName}?`
+      );
+    }
+
+    html += `<div class="section">
+      <button class="btn" data-action="reverse">Reverse Direction</button>
+    </div>`;
+
+    if (path.encounters && path.encounters.length > 0) {
+      html += `<div class="section"><h3>Encountered (${path.encounters.length})</h3><div class="encounter-list">`;
+      for (const enc of path.encounters) {
+        const encSeed = enc.seed ? SEED_MAP[enc.seed] : null;
+        const carrying = gardener.seed === enc.seed && enc.seed !== null;
+        html += `
+          <div class="encounter-row">
+            ${renderMeeple(enc.state)}
+            ${seedIcon(enc.seed)}
+            <div class="encounter-info">
+              <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
+            </div>
+            ${enc.seed && !carrying
+              ? `<button class="btn btn-sm btn-sage" data-action="take_seed" data-from-id="${enc.id}">Take Seed</button>`
+              : ''}
+          </div>`;
+      }
+      html += `</div></div>`;
+    }
+
+    html += `</div>${tabBar}</div>`;
+    app.innerHTML = html;
+    return;
+  }
+
+  // ── Normal location content ───────────────────────────────────────────────
   const energy = gardener.energy ?? 0;
   const energyMax = gardener.energyMax ?? 0;
   const selectedNurserySeedId = getSelectedNurserySeedId();
@@ -208,7 +316,6 @@ export function renderLocation(app) {
 
   let html = `<div class="main-screen"><div class="screen-content">`;
 
-  // ── Population row (top) ──────────────────────────────────────────────────
   if (location) {
     const population = 1 + (location.otherGardeners ? location.otherGardeners.length : 0);
     const allHere = [
@@ -223,7 +330,6 @@ export function renderLocation(app) {
     html += `</div>`;
   }
 
-  // ── Header + energy ───────────────────────────────────────────────────────
   const locName = location ? location.name : '...';
   html += `<div class="location-header">
     <h2>${locName}</h2>
@@ -235,19 +341,18 @@ export function renderLocation(app) {
     </div>
   </div>`;
 
-  // ── Tending status ────────────────────────────────────────────────────────
   if (gardener.state === 'tending') {
     const remaining = gardener.tendingUntil !== null ? Math.max(0, gardener.tendingUntil - tick) : 0;
     html += `<div class="section"><div class="origin-bar"><span class="muted">Tending&hellip; (${formatDuration(remaining)})</span></div></div>`;
   }
 
   if (location) {
-    // ── 1. Pots (circular wheel) ──────────────────────────────────────────
+    // ── 1. Pots ──────────────────────────────────────────────────────────────
     html += `<div class="section">`;
     html += renderPotsWheel(location.pots, tick, gardener, selectedPotId, selectedNurserySeedId);
     html += `</div>`;
 
-    // ── 2. Nursery (seed pool — select for planting) ──────────────────────
+    // ── 2. Nursery ───────────────────────────────────────────────────────────
     if (location.seedPool && location.seedPool.length > 0) {
       html += `<div class="section"><h3>Nursery</h3>`;
       if (gardener.state === 'resting') {
@@ -282,7 +387,7 @@ export function renderLocation(app) {
       html += `</div>`;
     }
 
-    // ── 3. Vision ─────────────────────────────────────────────────────────
+    // ── 3. Vision ────────────────────────────────────────────────────────────
     const activeRules = (gardener.rules || []).filter(r => !r.refreshing);
     if (activeRules.length > 0) {
       html += `<div class="section"><h3>Vision</h3><div class="vision-list">`;
@@ -301,17 +406,17 @@ export function renderLocation(app) {
       html += `</div></div>`;
     }
 
-    // ── 4. Travel ─────────────────────────────────────────────────────────
+    // ── 4. Travel ────────────────────────────────────────────────────────────
     const paths = getPathsForLocation(gardener.locationId);
     if (paths.length > 0 && gardener.state === 'resting') {
       const originBySeedLoc = Object.fromEntries(SEEDS.filter(s => s.locationId).map(s => [s.locationId, s]));
       const visited = new Set(state.record ? state.record.wanderings : []);
       html += `<div class="section"><h3>Travel</h3><div class="paths-list">`;
-      for (const path of paths) {
-        const destId = path.fromId === gardener.locationId ? path.toId : path.fromId;
+      for (const p of paths) {
+        const destId = p.fromId === gardener.locationId ? p.toId : p.fromId;
         const dest = LOCATION_MAP[destId];
         const destName = dest ? dest.name : destId;
-        const ticks = Math.ceil(path.length / movementSpeed);
+        const ticks = Math.ceil(p.length / (movementSpeed * (gardener.speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0))));
         const isVisited = visited.has(destId);
         const originSeed = originBySeedLoc[destId];
 
@@ -341,16 +446,16 @@ export function renderLocation(app) {
           <div class="path-row">
             <div class="path-info">
               <div class="path-dest">${destLabel}</div>
-              <div class="path-dist">${formatDistance(path.length)} &middot; ~${formatDuration(ticks)}</div>
+              <div class="path-dist">${formatDistance(p.length)} · ~${formatDuration(ticks)}</div>
               ${memStrip}
             </div>
-            <button class="btn btn-sm" data-action="walk" data-path-id="${path.id}">Walk</button>
+            <button class="btn btn-sm" data-action="walk" data-path-id="${p.id}">Walk</button>
           </div>`;
       }
       html += `</div></div>`;
     }
 
-    // ── 6. Other gardeners ────────────────────────────────────────────────
+    // ── 5. Other gardeners ───────────────────────────────────────────────────
     if (location.otherGardeners && location.otherGardeners.length > 0) {
       html += `<div class="section"><h3>Here now</h3><div class="gardener-list">`;
       for (const g of location.otherGardeners) {

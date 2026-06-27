@@ -1,5 +1,6 @@
-import { getState } from '../state.js';
-import { SEED_MAP } from '../seeds.js';
+import { getState, getJourneyLog } from '../state.js';
+import { SEED_MAP, SEEDS } from '../seeds.js';
+import { LOCATION_MAP, PATH_MAP } from '../world.js';
 import { renderMeeple } from '../meeple.js';
 
 function seedIcon(seedId) {
@@ -16,30 +17,46 @@ export function renderArrival(app) {
   const { gardener, arrival } = state;
   if (!arrival) return;
 
+  // Origin/core seed for the arrival location
+  const originSeed = SEEDS.find(s => s.locationId === arrival.locationId);
+
   let html = `<div class="arrival-screen">`;
 
   html += `
     <div class="arrival-label">Arrived at</div>
     <div class="arrival-name">${arrival.locationName}</div>`;
 
-  // Seed picker
+  if (originSeed) {
+    html += `
+      <div class="arrival-core-seed">
+        <div class="seed-icon seed-icon-arrival" style="background:${originSeed.color}">
+          <img src="/assets/seed_${originSeed.id}.svg" alt="${originSeed.name}" onerror="this.style.display='none'">
+        </div>
+        <div class="arrival-core-seed-name" style="color:${originSeed.color}">${originSeed.name}</div>
+      </div>`;
+  }
+
+  // Seed picker — nursery style with prompt
   if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
-    html += `<div class="section" style="text-align:left"><h3>Seed</h3><div class="carry-swap">`;
+    html += `<div class="section" style="text-align:left">
+      <p class="seed-carry-prompt">Which seed do you wish to carry with you into ${arrival.locationName}?</p>
+      <div class="nursery-grid">`;
     for (const seedId of gardener.availableSeeds) {
       const seed = SEED_MAP[seedId];
       const color = seed ? seed.color : '#666';
       const isSelected = gardener.seed === seedId;
-      html += `<button class="carry-chip${isSelected ? ' selected' : ''}"
-        data-action="pick_seed" data-seed-id="${seedId}"
-        ${isSelected ? 'disabled' : ''}
-        style="--chip-color:${color}">
-        <span class="carry-chip-dot" style="background:${color}"></span>${seed ? seed.name : seedId}
-      </button>`;
+      html += `
+        <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
+          data-action="pick_seed" data-seed-id="${seedId}"
+          ${isSelected ? 'disabled' : ''}>
+          ${seedIcon(seedId)}
+          <span class="nursery-seed-name" style="color:${color}">${seed ? seed.name : seedId}</span>
+        </button>`;
     }
     html += `</div></div>`;
   }
 
-  // Encounters on the journey
+  // Encounters
   if (arrival.encounters && arrival.encounters.length > 0) {
     html += `<div class="section" style="text-align:left"><h3>On your journey</h3><div class="encounter-list">`;
     for (const enc of arrival.encounters) {
@@ -58,6 +75,38 @@ export function renderArrival(app) {
         </div>`;
     }
     html += `</div></div>`;
+  }
+
+  // Journey log (locations visited this session)
+  const journeyLog = getJourneyLog();
+  if (journeyLog.length > 0) {
+    html += `<div class="section" style="text-align:left"><h3>Your journey</h3><div class="journey-list">`;
+    for (const locId of journeyLog) {
+      const loc = LOCATION_MAP[locId];
+      html += `<div class="journey-stop">${loc ? loc.name : locId}</div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  // Queued future locations
+  if (gardener.travelQueue && gardener.travelQueue.length > 0) {
+    const queuedLocIds = [];
+    let prevDestId = arrival.locationId;
+    for (const pathId of gardener.travelQueue) {
+      const p = PATH_MAP[pathId];
+      if (!p) break;
+      const dest = p.fromId === prevDestId ? p.toId : p.fromId;
+      queuedLocIds.push(dest);
+      prevDestId = dest;
+    }
+    if (queuedLocIds.length > 0) {
+      html += `<div class="section" style="text-align:left"><h3>Ahead</h3><div class="journey-list">`;
+      for (const locId of queuedLocIds) {
+        const loc = LOCATION_MAP[locId];
+        html += `<div class="journey-stop journey-stop-queued">${loc ? loc.name : locId}</div>`;
+      }
+      html += `</div></div>`;
+    }
   }
 
   html += `<div class="arrival-continue">

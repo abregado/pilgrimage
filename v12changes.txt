@@ -1,0 +1,8 @@
+In the map when a location is selected that can be travelled to, highlight all paths that the route will cover in yellow.
+
+in the Pot display, use the svg icons instead of the small symbols. Here they are allowed to be 32px. In fact, repalce those small icons wherever they are used with 32px version of the svg icons. Position these at the bottom middle of the plant image.
+
+In the pot display, double the size of the plant images. The images are currently cropped to a circle, instead of this, let them be square and dont crop them. The selected plant will get a yellow border at the bottom of it, and a yellow square around its seed cicon.
+
+I want to deploy this on fly.io from github actions whenever i push to the main branch. Make a plan for making that happen and tell me what i need to do. Write this plan into a markdown document called fly-deploy-plan.md
+

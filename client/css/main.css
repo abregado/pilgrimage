@@ -150,9 +150,9 @@ h3 {
 
 /* ── Seed icon ──────────────────────────────────── */
 .seed-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
   flex-shrink: 0;
   overflow: hidden;
   display: inline-flex;
@@ -161,9 +161,33 @@ h3 {
 }
 
 .seed-icon img {
-  width: 32px;
-  height: 32px;
+  width: 64px;
+  height: 64px;
   display: block;
+}
+
+.seed-icon-arrival {
+  width: 96px;
+  height: 96px;
+  border-radius: 16px;
+  margin: 0 auto 8px;
+}
+
+.seed-icon-arrival img {
+  width: 96px;
+  height: 96px;
+}
+
+.seed-icon-map-widget {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.seed-icon-map-widget img {
+  width: 64px;
+  height: 64px;
 }
 
 /* ── Buttons ────────────────────────────────────── */
@@ -414,10 +438,8 @@ h3 {
   border-radius: 8px;
 }
 
-/* ── Progress bar ───────────────────────────────── */
-.progress-wrap {
-  margin-bottom: 24px;
-}
+/* ── Progress bar (legacy, kept for compat) ──────── */
+.progress-wrap { margin-bottom: 24px; }
 .progress-labels {
   display: flex;
   justify-content: space-between;
@@ -425,23 +447,33 @@ h3 {
   color: var(--muted);
   margin-bottom: 6px;
 }
-.progress-bar {
-  height: 6px;
-  background: var(--surface2);
-  border-radius: 4px;
-  overflow: hidden;
+.progress-bar { height: 6px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--sage); border-radius: 4px; transition: width 0.95s linear; }
+.progress-eta { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: right; }
+
+/* ── Travel path visual ─────────────────────────── */
+.path-visual-wrap {
+  margin-bottom: 20px;
 }
-.progress-fill {
-  height: 100%;
-  background: var(--sage);
-  border-radius: 4px;
-  transition: width 0.95s linear;
+
+.path-visual-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 2px;
 }
-.progress-eta {
+
+.path-visual-svg {
+  width: 100%;
+  display: block;
+}
+
+.path-visual-eta {
   font-size: 12px;
   color: var(--muted);
-  margin-top: 6px;
   text-align: right;
+  margin-top: 2px;
 }
 
 /* ── Encounters ─────────────────────────────────── */
@@ -653,7 +685,7 @@ h3 {
 /* ── Nursery (seed pool) ────────────────────────── */
 .nursery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(88px, 1fr));
   gap: 8px;
 }
 
@@ -1041,3 +1073,67 @@ h3 {
 
 .map-symbol.walkable { cursor: pointer; }
 .map-symbol.selected { opacity: 0.6; }
+
+/* ── Arrival core seed ───────────────────────────── */
+.arrival-core-seed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.arrival-core-seed-name {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  margin-top: 6px;
+}
+
+/* ── Seed carry prompt (walking / arrival picker) ── */
+.seed-carry-prompt {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+/* ── Journey list (arrival screen) ──────────────── */
+.journey-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journey-stop {
+  font-size: 13px;
+  padding: 5px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+}
+
+.journey-stop-queued {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+/* ── Map location widget (bottom of map) ─────────── */
+.map-loc-widget {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.map-loc-widget-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.map-loc-widget-name {
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}

@@ -1,7 +1,7 @@
 import { SEEDS } from './seeds.js';
 import { PATH_MAP, LOCATION_MAP } from './world.js';
 import { SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS, GROWN_TICKS, SEEDLING_TICKS, FRUITING_TICKS, DEAD_TICKS, POT_EMPTY_DURATION, POT_SEED_DURATION, POT_SEEDLING_DURATION, POT_GROWN_DURATION, POT_FRUITING_DURATION, POT_DEAD_DURATION } from './constants.js';
-import { pickInitialRules } from './rules.js';
+import { pickInitialRules, RULE_TEMPLATE_MAP } from './rules.js';
 
 function fail(error) {
   return { ok: false, error };
@@ -9,6 +9,24 @@ function fail(error) {
 
 function ok() {
   return { ok: true };
+}
+
+function checkRuleCompletion(gardener, state) {
+  const uniqueVisited = [...new Set(gardener.record.wanderings)];
+  for (const rule of (gardener.rules || [])) {
+    if (rule.deletedTick !== null || rule.completed) continue;
+    const template = RULE_TEMPLATE_MAP[rule.templateId];
+    if (!template) continue;
+    let count = 0;
+    for (const locId of uniqueVisited) {
+      const locData = state.locations[locId];
+      if (locData && template.check(locData.pots)) count++;
+    }
+    if (count >= rule.difficulty) {
+      rule.completed = true;
+      gardener.speedBonus = Math.round((gardener.speedBonus ?? 1) * 1.02 * 1000) / 1000;
+    }
+  }
 }
 
 // Find which location a pot belongs to
@@ -66,6 +84,7 @@ export function createOrRestoreGardener(deviceId, state) {
     speedBonus: 1.0,
     availableSeeds: null,
     locationMemory: {},
+    travelQueue: [],
     record: {
       wanderings: [spawnLocation],
       seedLog,
@@ -161,6 +180,7 @@ export function pot(deviceId, potId, seedId, state) {
   gardener.tendingUntil = state.tick + tendingDuration;
   gardener.lastActiveTick = state.tick;
 
+  checkRuleCompletion(gardener, state);
   return ok();
 }
 
@@ -264,7 +284,8 @@ export function reverse(deviceId, state) {
   const path = PATH_MAP[gardener.pathId];
   if (!path) return fail('Path not found');
 
-  // Swap pathFrom to the other end
+  gardener.travelQueue = [];
+
   const newFrom = gardener.pathFrom === path.fromId ? path.toId : path.fromId;
   gardener.progress = path.length - gardener.progress;
   gardener.pathFrom = newFrom;
@@ -399,4 +420,27 @@ export function pickSeed(deviceId, seedId, state) {
   gardener.seed = seedId;
   gardener.lastActiveTick = state.tick;
   return ok();
+}
+
+export function queueTravel(deviceId, pathIds, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  if (gardener.state !== 'resting') return fail('Must be resting');
+  if (!gardener.locationId) return fail('Not at a location');
+  if (!Array.isArray(pathIds) || pathIds.length === 0) return fail('No paths provided');
+
+  // Validate the full chain connects end-to-end from current location
+  let currentLocId = gardener.locationId;
+  for (const pathId of pathIds) {
+    const path = PATH_MAP[pathId];
+    if (!path) return fail(`Path not found: ${pathId}`);
+    if (path.fromId !== currentLocId && path.toId !== currentLocId) {
+      return fail(`Path ${pathId} does not connect from ${currentLocId}`);
+    }
+    currentLocId = path.fromId === currentLocId ? path.toId : path.fromId;
+  }
+
+  // Store remaining paths; start first leg via walk (which handles seeds/memory snapshot)
+  gardener.travelQueue = pathIds.slice(1);
+  return walk(deviceId, pathIds[0], state);
 }

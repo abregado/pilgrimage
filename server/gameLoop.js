@@ -2,6 +2,7 @@ import { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
          SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
          RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE } from './constants.js';
 import { PATH_MAP } from './world.js';
+import { SEEDS } from './seeds.js';
 import { computeEnergyMax } from './state.js';
 import { RULE_TEMPLATE_MAP, pickNewRuleForLevel } from './rules.js';
 
@@ -42,16 +43,57 @@ function tick(getState, saveState, broadcast) {
 
     if (gardener.progress >= path.length) {
       const destId = path.fromId === gardener.pathFrom ? path.toId : path.fromId;
-
-      gardener.state = 'arriving';
-      gardener.locationId = destId;
-      gardener.arrivedEncounters = [...gardener.encounteredThisTrip];
-      gardener.encounteredThisTrip = [];
-      gardener.pathId = null;
-      gardener.pathFrom = null;
-      gardener.progress = 0;
-
       gardener.record.wanderings.push(destId);
+
+      const nextPathId = gardener.travelQueue && gardener.travelQueue.length > 0
+        ? gardener.travelQueue[0] : null;
+      const nextPath = nextPathId ? PATH_MAP[nextPathId] : null;
+
+      if (nextPath && (nextPath.fromId === destId || nextPath.toId === destId)) {
+        // Auto-start next leg: snapshot seeds and memory at this intermediate location
+        gardener.travelQueue.shift();
+        const locData = state.locations[destId];
+        const originSeed = SEEDS.find(s => s.locationId === destId);
+        const poolSet = new Set();
+        if (originSeed) poolSet.add(originSeed.id);
+        if (gardener.seed) poolSet.add(gardener.seed);
+        if (locData) {
+          for (const p of locData.pots) {
+            if (p.seedId && p.lastPlantedTick !== null &&
+                (state.tick - p.lastPlantedTick) >= GROWN_TICKS) {
+              poolSet.add(p.seedId);
+            }
+          }
+          if (!gardener.locationMemory) gardener.locationMemory = {};
+          gardener.locationMemory[destId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId }));
+        }
+        for (const otherG of Object.values(state.gardeners)) {
+          if (otherG.id !== gardener.id && otherG.locationId === destId &&
+              (otherG.state === 'resting' || otherG.state === 'tending') && otherG.seed) {
+            poolSet.add(otherG.seed);
+          }
+        }
+        gardener.availableSeeds = [...poolSet];
+
+        gardener.pathId = nextPathId;
+        gardener.pathFrom = destId;
+        gardener.progress = 0;
+        gardener.state = 'walking';
+        gardener.locationId = null;
+        gardener.encounteredThisTrip = [];
+        gardener.arrivedEncounters = null;
+      } else {
+        // No valid queued path — normal arrival
+        if (gardener.travelQueue) gardener.travelQueue = [];
+        gardener.state = 'arriving';
+        gardener.locationId = destId;
+        gardener.arrivedEncounters = [...gardener.encounteredThisTrip];
+        gardener.encounteredThisTrip = [];
+        gardener.pathId = null;
+        gardener.pathFrom = null;
+        gardener.progress = 0;
+      }
+
       changed = true;
     }
   }

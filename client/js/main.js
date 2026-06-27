@@ -50,9 +50,14 @@ document.getElementById('app').addEventListener('click', (e) => {
       if (locId === getSelectedMapLocId()) {
         clearSelectedMapLoc();
       } else {
-        setSelectedMapLoc(locId, btn.dataset.pathId);
+        setSelectedMapLoc(locId);
       }
       render();
+      break;
+    }
+    case 'queue_travel': {
+      const pathIds = JSON.parse(btn.dataset.pathIds);
+      sendAction({ type: 'queue_travel', pathIds });
       break;
     }
     case 'walk': {

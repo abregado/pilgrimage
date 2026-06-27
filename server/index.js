@@ -76,6 +76,7 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'continue')   result = actions.continuee(deviceId, state);
     else if (msg.type === 'delete_rule') result = actions.deleteRule(deviceId, msg.ruleId, state);
     else if (msg.type === 'pick_seed') result = actions.pickSeed(deviceId, msg.seedId, state);
+    else if (msg.type === 'queue_travel') result = actions.queueTravel(deviceId, msg.pathIds, state);
     else if (msg.type === 'poll')   result = { ok: true };
 
     if (result.ok) {
