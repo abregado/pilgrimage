@@ -1,12 +1,14 @@
 import { connect, sendAction } from './network.js';
-import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId } from './state.js';
+import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId, setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId } from './state.js';
 import { render } from './render.js';
 import { SEED_MAP } from './seeds.js';
+import { ensurePlaying, toggleMusic } from './audio.js';
 
 // Single delegated click handler — attached once, never removed
 document.getElementById('app').addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
+  ensurePlaying();
   const { action } = btn.dataset;
 
   switch (action) {
@@ -43,6 +45,16 @@ document.getElementById('app').addEventListener('click', (e) => {
       sendAction({ type: 'pot', potId: btn.dataset.potId, seedId: btn.dataset.seedId || getSelectedNurserySeedId() || null });
       break;
     }
+    case 'select_map_loc': {
+      const locId = btn.dataset.locId;
+      if (locId === getSelectedMapLocId()) {
+        clearSelectedMapLoc();
+      } else {
+        setSelectedMapLoc(locId, btn.dataset.pathId);
+      }
+      render();
+      break;
+    }
     case 'walk': {
       sendAction({ type: 'walk', pathId: btn.dataset.pathId });
       break;
@@ -61,6 +73,11 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'delete_rule': {
       sendAction({ type: 'delete_rule', ruleId: btn.dataset.ruleId });
+      break;
+    }
+    case 'toggle_music': {
+      toggleMusic();
+      render();
       break;
     }
   }

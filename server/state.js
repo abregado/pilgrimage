@@ -1,6 +1,6 @@
 import { SEEDS, SEED_MAP } from './seeds.js';
 import { LOCATIONS, LOCATION_MAP, PATH_MAP } from './world.js';
-import { MOVEMENT_SPEED, BASE_ENERGY_MAX, GROWN_TICKS } from './constants.js';
+import { MOVEMENT_SPEED, BASE_ENERGY_MAX, GROWN_TICKS, SPEED_BONUS_PER_RULE } from './constants.js';
 import { RULE_TEMPLATE_MAP } from './rules.js';
 
 let _state = null;
@@ -14,7 +14,6 @@ function makeFreshLocations() {
       pots.push({
         id: `${loc.id}_pot_${i}`,
         seedId: null,
-        isOrigin: i === 0,
         decorators: [],
         settlingUntil: null,
         lastPlantedTick: null,
@@ -92,7 +91,6 @@ export function getGardenerView(deviceId) {
         id: pot.id,
         seedId: pot.seedId,
         seedName: seedMeta ? seedMeta.name : null,
-        isOrigin: pot.isOrigin,
         decoratorCount: pot.decorators.length,
         iDecorated: pot.decorators.includes(gardener.id),
         settlingUntil: pot.settlingUntil,
@@ -248,5 +246,6 @@ export function getGardenerView(deviceId) {
     },
     tick,
     movementSpeed: MOVEMENT_SPEED,
+    rulesSpeedBonus: (gardener.rules || []).filter(r => r.completed && r.deletedTick === null).length * SPEED_BONUS_PER_RULE,
   };
 }

@@ -61,8 +61,8 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
   const n = pots.length;
   // Radius as % of container for pot centres
   const R  = 36;
-  // Radius for seed symbol (just inside the ring toward centre)
-  const Rs = 20;
+  // Radius for seed symbol (outside the pot circles)
+  const Rs = 48;
 
   let html = `<div class="pots-wheel">`;
 
@@ -79,15 +79,31 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     const color = pot.seedId ? seedColor(pot.seedId) : null;
     const sym   = pot.seedId ? seedSymbol(pot.seedId) : null;
 
+    // Decoration dots (positioned around pot circle circumference)
+    let decDots = '';
+    if (pot.decoratorCount > 0) {
+      const dotR = 33;
+      for (let d = 0; d < pot.decoratorCount; d++) {
+        const da = (d * 2 * Math.PI / pot.decoratorCount) - Math.PI / 2;
+        const dx = Math.round(Math.cos(da) * dotR * 10) / 10;
+        const dy = Math.round(Math.sin(da) * dotR * 10) / 10;
+        // If player decorated, last dot uses distinct color; others alternate two reds
+        const isPlayerDot = pot.iDecorated && d === pot.decoratorCount - 1;
+        const dotClass = isPlayerDot ? 'dec-dot dec-dot-mine' : `dec-dot dec-dot-${d % 2}`;
+        decDots += `<div class="${dotClass}" style="left:calc(50% + ${dx}px);top:calc(50% + ${dy}px)"></div>`;
+      }
+    }
+
     // Pot circle
     html += `
       <button class="pot-item${isSelected ? ' selected' : ''}"
         style="left:calc(50% + ${px}%);top:calc(50% + ${py}%)"
         data-action="select_pot" data-pot-id="${pot.id}"
         aria-label="${pot.seedId ? seedName(pot.seedId) : 'Empty pot'}">
-        <div class="pot-circle${pot.settlingUntil !== null ? ' settling' : ''}${pot.isOrigin ? ' origin' : ''}">
+        <div class="pot-circle${pot.settlingUntil !== null ? ' settling' : ''}">
           ${stage ? `<img src="/assets/${pot.seedId}_${stage}.png" class="pot-wheel-img" alt="${stage}" onerror="this.style.display='none'">` : ''}
         </div>
+        ${decDots}
       </button>`;
 
     // Seed symbol floated toward centre

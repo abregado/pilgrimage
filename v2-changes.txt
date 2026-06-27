@@ -11,3 +11,7 @@ Decorations are shown as small red filled circles equidistant  around the circum
 Make the Pot display 20% larger without increasing the side of the Pots.
 
 In the Pilgrim Record remove the Garden and Wandering section.
+
+In the Pilgrim record, show the current movement speed bonus that is calculated based on how many Rules are complete. Add a small block of text explaining that you get more speed for completing more of your Vision.
+
+In the map, clicking on a node selects it instead of starting to travel to it. Instead, have a button "Travel" appear under the map that the user presses to go there (if allowed)

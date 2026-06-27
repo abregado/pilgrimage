@@ -1,5 +1,6 @@
 import { LOCATIONS, PATHS, LOCATION_MAP } from '../world.js';
 import { SEEDS } from '../seeds.js';
+import { getSelectedMapLocId, getSelectedMapPathId } from '../state.js';
 
 const SVG_W = 800;
 const SVG_H = 900;
@@ -13,6 +14,9 @@ export function renderMap(container, state) {
     container.innerHTML = `<p class="muted center">Not connected</p>`;
     return;
   }
+
+  const selectedLocId  = getSelectedMapLocId();
+  const selectedPathId = getSelectedMapPathId();
 
   const { gardener, path: pathView } = state;
   const wanderings = (state.record && state.record.wanderings) || [];
@@ -61,9 +65,10 @@ export function renderMap(container, state) {
 
     let cls = isVisited ? 'map-loc visited' : 'map-loc adjacent';
     if (isWalkable) cls += ' walkable';
+    if (loc.id === selectedLocId) cls += ' selected';
 
     const attrs = `data-loc-id="${loc.id}"` +
-      (isWalkable ? ` data-action="walk" data-path-id="${walkable.get(loc.id)}"` : '');
+      (isWalkable ? ` data-action="select_map_loc" data-path-id="${walkable.get(loc.id)}"` : '');
 
     svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
 
@@ -97,7 +102,13 @@ export function renderMap(container, state) {
 
   svg += `</svg>`;
 
-  container.innerHTML = `<div class="map-wrap"><div class="map-tooltip" hidden></div>${svg}</div>`;
+  let travelButton = '';
+  if (selectedLocId && selectedPathId) {
+    const destName = LOCATION_MAP[selectedLocId]?.name ?? selectedLocId;
+    travelButton = `<div class="map-travel-bar"><button class="btn" data-action="walk" data-path-id="${selectedPathId}">Travel to ${destName}</button></div>`;
+  }
+
+  container.innerHTML = `<div class="map-wrap"><div class="map-tooltip" hidden></div>${svg}</div>${travelButton}`;
 
   // Hover tooltip
   const svgEl   = container.querySelector('.world-map');

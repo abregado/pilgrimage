@@ -493,8 +493,15 @@ h3 {
 .map-loc          { fill: var(--surface2); stroke: var(--border); stroke-width: 2; }
 .map-loc.visited  { fill: var(--surface); stroke: var(--sage); }
 .map-loc.adjacent { fill: var(--surface); stroke: #1e2e1e; opacity: 0.7; }
-.map-loc.walkable { cursor: pointer; stroke: var(--accent); stroke-width: 2.5; }
-.map-loc.walkable:hover { stroke-width: 3.5; }
+.map-loc.walkable          { cursor: pointer; stroke: var(--accent); stroke-width: 2.5; }
+.map-loc.walkable:hover    { stroke-width: 3.5; }
+.map-loc.walkable.selected { stroke: var(--accent); stroke-width: 4; fill: rgba(201,168,76,0.15); }
+
+.map-travel-bar {
+  padding: 10px 16px;
+  display: flex;
+  justify-content: center;
+}
 .map-label        { fill: var(--text); font-size: 12px; text-anchor: middle; font-family: sans-serif; }
 .map-you-label    { fill: var(--accent); font-size: 12px; }
 .map-you          { fill: var(--accent); stroke: var(--bg); stroke-width: 3; }
@@ -524,6 +531,8 @@ h3 {
 
 .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
 .stat-value { font-size: 22px; font-weight: 300; margin-top: 2px; }
+.speed-bonus-value { color: var(--sage); }
+.record-speed-hint { font-size: 11px; color: var(--muted); margin: 0; line-height: 1.5; }
 
 .wanderings-list {
   display: flex;
@@ -842,7 +851,7 @@ h3 {
 .pots-wheel {
   position: relative;
   width: 100%;
-  max-width: 320px;
+  max-width: 384px;
   aspect-ratio: 1;
   margin: 0 auto;
   user-select: none;
@@ -879,7 +888,6 @@ h3 {
 .pot-item:hover .pot-circle    { border-color: var(--muted); }
 .pot-item.selected .pot-circle { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
 .pot-circle.settling           { border-color: var(--sage); border-style: dashed; }
-.pot-circle.origin             { border-color: rgba(201,168,76,0.45); }
 
 .pot-wheel-img {
   position: absolute;
@@ -892,11 +900,24 @@ h3 {
 .pot-symbol {
   position: absolute;
   transform: translate(-50%, -50%);
-  font-size: 13px;
+  font-size: 20px;
   pointer-events: none;
   line-height: 1;
-  text-shadow: 0 0 4px var(--bg);
+  text-shadow: 0 0 6px var(--bg);
 }
+
+/* Decoration dots */
+.dec-dot {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.dec-dot-0    { background: #e03030; }
+.dec-dot-1    { background: #aa1010; }
+.dec-dot-mine { background: #e06030; }
 
 /* Centre info panel */
 .pots-center {

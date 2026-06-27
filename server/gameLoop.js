@@ -1,6 +1,6 @@
 import { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
          SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
-         RULE_REFRESH_TICKS } from './constants.js';
+         RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE } from './constants.js';
 import { PATH_MAP } from './world.js';
 import { computeEnergyMax } from './state.js';
 import { RULE_TEMPLATE_MAP, pickNewRuleForLevel } from './rules.js';
@@ -29,7 +29,8 @@ function tick(getState, saveState, broadcast) {
   // 2. Advance walking gardeners
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state !== 'walking') continue;
-    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1);
+    const completedRules = (gardener.rules || []).filter(r => r.completed && r.deletedTick === null).length;
+    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedRules * SPEED_BONUS_PER_RULE);
     changed = true;
   }
 

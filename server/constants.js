@@ -15,3 +15,5 @@ export const DEAD_TICKS     = 2592000; // ~30 days
 
 export const INITIAL_RULE_SLOTS  = 4;
 export const RULE_REFRESH_TICKS  = 60;  // 1 minute
+
+export const SPEED_BONUS_PER_RULE = 0.10; // +10% movement speed per completed vision

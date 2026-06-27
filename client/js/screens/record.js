@@ -1,6 +1,7 @@
 import { SEEDS, SEED_MAP } from '../seeds.js';
-import { LOCATIONS, LOCATION_MAP } from '../world.js';
+import { LOCATIONS } from '../world.js';
 import { formatAge, formatDuration } from '../utils.js';
+import { isMusicEnabled } from '../audio.js';
 
 function seedIcon(seedId, small) {
   if (!seedId) return `<div class="seed-icon" style="background:#222;width:${small?24:32}px;height:${small?24:32}px;border-radius:4px"></div>`;
@@ -20,7 +21,7 @@ export function renderRecord(container, state) {
     return;
   }
 
-  const { record, gardener, tick } = state;
+  const { record, gardener, tick, rulesSpeedBonus } = state;
   if (!record) {
     container.innerHTML = `<p class="muted center">No record yet</p>`;
     return;
@@ -98,19 +99,17 @@ export function renderRecord(container, state) {
   }
   html += `</div>`;
 
-  // Wanderings
-  html += `<div class="section"><h3>Wanderings (${record.wanderings.length})</h3>`;
-  if (record.wanderings.length === 0) {
-    html += `<p class="muted">No journeys yet</p>`;
-  } else {
-    html += `<div class="wanderings-list">`;
-    for (const locId of [...record.wanderings].reverse()) {
-      const loc = LOCATION_MAP[locId];
-      html += `<div class="wandering-entry">${loc ? loc.name : locId}</div>`;
-    }
-    html += `</div>`;
-  }
-  html += `</div>`;
+  // Speed
+  const bonusPct = Math.round((rulesSpeedBonus || 0) * 100);
+  html += `
+    <div class="section">
+      <h3>Movement Speed</h3>
+      <div class="record-stat">
+        <div class="stat-label">Vision bonus</div>
+        <div class="stat-value speed-bonus-value">+${bonusPct}%</div>
+      </div>
+      <p class="record-speed-hint">Complete more of your Vision to move faster across the world. Each completed vision adds +10% movement speed.</p>
+    </div>`;
 
   // Seed log — vertical list with stage checkboxes
   html += `
@@ -123,12 +122,10 @@ export function renderRecord(container, state) {
         <span class="log-col-label" title="Grown observed">Gr</span>
         <span class="log-col-label" title="Fruiting observed">Fr</span>
         <span class="log-col-label" title="Dead observed">De</span>
-        <span class="log-col-label" title="Origin location visited">Or</span>
       </div>
       <div class="seedlog-list">`;
   for (const seed of SEEDS) {
     const log = record.seedLog[seed.id] || {};
-    const originVisited = record.wanderings.includes(seed.locationId);
     html += `
       <div class="seedlog-row">
         <div class="seedlog-identity">
@@ -140,32 +137,14 @@ export function renderRecord(container, state) {
         ${check(log.grown)}
         ${check(log.fruiting)}
         ${check(log.dead)}
-        ${check(originVisited)}
       </div>`;
   }
   html += `</div></div>`;
 
-  // Garden (top 3 decorated pots)
-  html += `<div class="section"><h3>Garden</h3>`;
-  if (!record.garden || record.garden.length === 0) {
-    html += `<p class="muted">Decorate pots to build your garden</p>`;
-  } else {
-    html += `<div class="garden-list">`;
-    for (const entry of record.garden) {
-      const seed = SEED_MAP[entry.seedId];
-      const color = seed ? seed.color : '#666';
-      html += `
-        <div class="garden-entry">
-          ${seedIcon(entry.seedId)}
-          <div class="garden-info">
-            <div class="garden-seed" style="color:${color}">${seed ? seed.name : entry.seedId}</div>
-            <div class="garden-decorators">${entry.otherDecoratorCount} other decorator${entry.otherDecoratorCount !== 1 ? 's' : ''}</div>
-          </div>
-        </div>`;
-    }
-    html += `</div>`;
-  }
-  html += `</div>`;
+  html += `
+    <div class="section">
+      <button class="btn btn-full btn-muted" data-action="toggle_music">${isMusicEnabled() ? 'Music: On' : 'Music: Off'}</button>
+    </div>`;
 
   container.innerHTML = html;
 }

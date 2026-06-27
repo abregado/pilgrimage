@@ -10,6 +10,14 @@ const app = express();
 const server = createServer(app);
 const wss = new WebSocketServer({ server });
 
+// No-cache headers for all responses
+app.use((_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 // Serve assets and client
 app.use('/assets', express.static('./assets'));
 app.use(express.static('./client'));
