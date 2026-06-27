@@ -46,9 +46,16 @@ wss.on('connection', (ws) => {
     if (msg.type === 'connect') {
       deviceId = msg.deviceId;
       clients.set(deviceId, ws);
-      actions.createOrRestoreGardener(deviceId, getState());
-      saveState(getState());
-      sendToClient(ws, { type: 'state', data: getGardenerView(deviceId) });
+      const connectState = getState();
+      const existing = connectState.gardeners[deviceId];
+      if (existing) {
+        if (existing.state === 'sleeping') existing.state = 'resting';
+        existing.lastActiveTick = connectState.tick;
+        saveState(connectState);
+        sendToClient(ws, { type: 'state', data: getGardenerView(deviceId) });
+      } else {
+        sendToClient(ws, { type: 'state', data: null });
+      }
       return;
     }
 
@@ -57,7 +64,9 @@ wss.on('connection', (ws) => {
     const state = getState();
     let result = { ok: false };
 
-    if (msg.type === 'decorate')    result = actions.decorate(deviceId, msg.potId, state);
+    if (msg.type === 'join') {
+      result = actions.createOrRestoreGardener(deviceId, state);
+    } else if (msg.type === 'decorate')    result = actions.decorate(deviceId, msg.potId, state);
     else if (msg.type === 'undecorate') result = actions.undecorate(deviceId, msg.potId, state);
     else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, msg.seedId || null, state);
     else if (msg.type === 'swap')   result = actions.swap(deviceId, msg.seedId, state);
@@ -66,6 +75,7 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'take_seed') result = actions.takeSeed(deviceId, msg.fromId, state);
     else if (msg.type === 'continue')   result = actions.continuee(deviceId, state);
     else if (msg.type === 'delete_rule') result = actions.deleteRule(deviceId, msg.ruleId, state);
+    else if (msg.type === 'pick_seed') result = actions.pickSeed(deviceId, msg.seedId, state);
     else if (msg.type === 'poll')   result = { ok: true };
 
     if (result.ok) {

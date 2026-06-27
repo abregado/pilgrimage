@@ -22,15 +22,21 @@ export function renderArrival(app) {
     <div class="arrival-label">Arrived at</div>
     <div class="arrival-name">${arrival.locationName}</div>`;
 
-  // Carry
-  if (gardener.seed) {
-    const seed = SEED_MAP[gardener.seed];
-    const color = seed ? seed.color : '#666';
-    html += `<div class="carry-bar">
-      ${seedIcon(gardener.seed)}
-      <span class="carry-name" style="color:${color}">${seed ? seed.name : gardener.seed}</span>
-      <span class="carry-label">carried</span>
-    </div>`;
+  // Seed picker
+  if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
+    html += `<div class="section" style="text-align:left"><h3>Seed</h3><div class="carry-swap">`;
+    for (const seedId of gardener.availableSeeds) {
+      const seed = SEED_MAP[seedId];
+      const color = seed ? seed.color : '#666';
+      const isSelected = gardener.seed === seedId;
+      html += `<button class="carry-chip${isSelected ? ' selected' : ''}"
+        data-action="pick_seed" data-seed-id="${seedId}"
+        ${isSelected ? 'disabled' : ''}
+        style="--chip-color:${color}">
+        <span class="carry-chip-dot" style="background:${color}"></span>${seed ? seed.name : seedId}
+      </button>`;
+    }
+    html += `</div></div>`;
   }
 
   // Encounters on the journey

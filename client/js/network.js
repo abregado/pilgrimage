@@ -1,5 +1,5 @@
 import { getOrCreateDeviceId } from './utils.js';
-import { setState, updateScreenFromState } from './state.js';
+import { setState, setConnected, updateScreenFromState } from './state.js';
 import { render } from './render.js';
 
 let ws = null;
@@ -17,6 +17,7 @@ export function connect() {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
     if (msg.type === 'state') {
+      setConnected(true);
       setState(msg.data);
       updateScreenFromState();
       render();

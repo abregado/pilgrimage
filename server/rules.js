@@ -82,35 +82,35 @@ function makeTemplate(id, level, difficulty, description, seeds, check) {
 
 export const RULE_TEMPLATES = [];
 
-// ── Level 1: single-seed presence (find 10 locations) ────────────────────────
+// ── Level 1: single-seed presence (find 6 locations) ────────────────────────
 for (const seedId of ALL_SEEDS) {
   const name = SEED_NAMES[seedId];
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_present`,
-    1, 10,
-    `Discovered 10 locations where ${name} is planted`,
+    1, 6,
+    `6 locations in the world have ${name} planted`,
     [seedId],
     (p) => p.some(x => x.seedId === seedId),
   ));
 }
 
-// ── Level 2a: co-presence pairs (find 10 locations) ──────────────────────────
+// ── Level 2a: co-presence pairs (find 6 locations) ───────────────────────────
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_copresent`,
-    2, 10,
-    `Discovered 10 locations where ${SEED_NAMES[a]} and ${SEED_NAMES[b]} are both planted`,
+    2, 6,
+    `6 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} both planted`,
     [a, b],
     (p) => p.some(x => x.seedId === a) && p.some(x => x.seedId === b),
   ));
 }
 
-// ── Level 2b: adjacent pairs (find 5 locations) ───────────────────────────────
+// ── Level 2b: adjacent pairs (find 3 locations) ───────────────────────────────
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_adjacent`,
-    2, 5,
-    `Discovered 5 locations where ${SEED_NAMES[a]} and ${SEED_NAMES[b]} are planted adjacent to each other`,
+    2, 3,
+    `3 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} planted adjacent to each other`,
     [a, b],
     adjCheck(a, b),
   ));
@@ -121,37 +121,37 @@ for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_next_empty`,
     2, 8,
-    `Discovered 8 locations where ${SEED_NAMES[seedId]} is planted next to an empty pot`,
+    `8 locations in the world have ${SEED_NAMES[seedId]} planted next to an empty pot`,
     [seedId],
     nextToEmptyCheck(seedId),
   ));
 }
 
-// ── Level 3a: sandwich — seedA flanked by two seedB (find 5 locations) ────────
+// ── Level 3a: sandwich — seedA flanked by two seedB (find 3 locations) ────────
 // Both directions so every seed can appear as "the centre"
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${b}_sandwiches_${a}`,
-    3, 5,
-    `Discovered 5 locations where two ${SEED_NAMES[b]} are planted with ${SEED_NAMES[a]} between them`,
+    3, 3,
+    `3 locations in the world have two ${SEED_NAMES[b]} planted with ${SEED_NAMES[a]} between them`,
     [a, b],
     sandwichCheck(a, b),
   ));
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_sandwiches_${b}`,
-    3, 5,
-    `Discovered 5 locations where two ${SEED_NAMES[a]} are planted with ${SEED_NAMES[b]} between them`,
+    3, 3,
+    `3 locations in the world have two ${SEED_NAMES[a]} planted with ${SEED_NAMES[b]} between them`,
     [a, b],
     sandwichCheck(b, a),
   ));
 }
 
-// ── Level 3b: all pots filled with the same plant (find 10 locations) ────────
+// ── Level 3b: triple planting (find 6 locations) ─────────────────────────────
 for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_triple`,
-    3, 10,
-    `Discovered 10 locations where ${SEED_NAMES[seedId]} is planted at least 3 times`,
+    3, 6,
+    `6 locations in the world have ${SEED_NAMES[seedId]} planted at least 3 times`,
     [seedId],
     (p) => p.filter(x => x.seedId === seedId).length >= 3,
   ));

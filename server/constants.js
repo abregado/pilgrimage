@@ -1,7 +1,13 @@
 export const TICK_RATE = 1000;          // ms per tick
 export const MOVEMENT_SPEED = 100;       // meters per tick
-export const TENDING_DURATION = 1;      // ticks
-export const SETTLING_DURATION = 120;   // ticks (2x tending)
+export const SETTLING_DURATION = 120;   // ticks
+
+export const POT_EMPTY_DURATION    = 1;
+export const POT_SEED_DURATION     = 60;
+export const POT_SEEDLING_DURATION = 1200;
+export const POT_GROWN_DURATION    = 3600;
+export const POT_FRUITING_DURATION = 18000;
+export const POT_DEAD_DURATION     = 1;
 export const SLEEP_THRESHOLD = 21600;   // ticks (6 hours)
 
 export const BASE_ENERGY_MAX = 3;

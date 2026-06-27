@@ -24,7 +24,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 9;
+const CURRENT_VERSION = 10;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
@@ -42,7 +42,24 @@ export function computeEnergyMax(gardener, state) {
 function migrate(loaded) {
   const v = loaded.version || 1;
   if (v === CURRENT_VERSION) return loaded;
-  // Version mismatch: wipe and rebuild (no long-lived player records worth preserving yet)
+  if (v === 9) {
+    console.log(`State version 9 → 10: patching rule templates`);
+    for (const gardener of Object.values(loaded.gardeners)) {
+      if (gardener.rules) {
+        for (const rule of gardener.rules) {
+          if (rule.deletedTick === null) {
+            const template = RULE_TEMPLATE_MAP[rule.templateId];
+            if (template) {
+              rule.difficulty = template.difficulty;
+              rule.description = template.description;
+            }
+          }
+        }
+      }
+    }
+    loaded.version = CURRENT_VERSION;
+    return loaded;
+  }
   console.log(`State version ${v} → ${CURRENT_VERSION}: rebuilding fresh state`);
   return null;
 }
@@ -234,6 +251,8 @@ export function getGardenerView(deviceId) {
       energyMax: gardener.energyMax,
       speedBonus: gardener.speedBonus ?? 1,
       rules: rulesView,
+      availableSeeds: gardener.availableSeeds ?? null,
+      locationMemory: gardener.locationMemory ?? {},
     },
     location: locationView,
     path: pathView,

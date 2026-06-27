@@ -54,7 +54,7 @@ export function renderMap(container, state) {
     svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="map-path visited"/>`;
   }
 
-  // Location circles
+  // Location nodes
   for (const loc of LOCATIONS) {
     const isVisited  = visited.has(loc.id);
     const isAdjacent = adjacent.has(loc.id);
@@ -63,18 +63,29 @@ export function renderMap(container, state) {
     const isCurrent  = loc.id === currentLocId;
     const isWalkable = walkable.has(loc.id);
 
-    let cls = isVisited ? 'map-loc visited' : 'map-loc adjacent';
-    if (isWalkable) cls += ' walkable';
-    if (loc.id === selectedLocId) cls += ' selected';
-
     const attrs = `data-loc-id="${loc.id}"` +
       (isWalkable ? ` data-action="select_map_loc" data-path-id="${walkable.get(loc.id)}"` : '');
 
-    svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
+    if (isVisited) {
+      const seed = originByLoc[loc.id];
+      const symbol = seed ? seed.symbol : '·';
+      const color  = seed ? seed.color  : 'var(--muted)';
+      let cls = 'map-symbol';
+      if (isWalkable) cls += ' walkable';
+      if (loc.id === selectedLocId) cls += ' selected';
+      svg += `<text x="${loc.x}" y="${loc.y}" class="${cls}" ${attrs}
+        font-size="22" text-anchor="middle" dominant-baseline="central"
+        fill="${color}">${symbol}</text>`;
+    } else {
+      let cls = 'map-loc adjacent';
+      if (isWalkable) cls += ' walkable';
+      if (loc.id === selectedLocId) cls += ' selected';
+      svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
+    }
 
-    // Permanent name label only for current location
+    // Name label only for current location
     if (isCurrent) {
-      svg += `<text x="${loc.x}" y="${loc.y + LOC_R + 14}" class="map-label">${loc.name}</text>`;
+      svg += `<text x="${loc.x}" y="${loc.y + 22}" class="map-label">${loc.name}</text>`;
     }
   }
 
@@ -127,7 +138,7 @@ export function renderMap(container, state) {
     const seed  = originByLoc[locId];
     const label = isVis
       ? `${seed?.symbol ?? ''} ${loc.name}`.trim()
-      : '?';
+      : loc.name;
 
     // Convert SVG coords → overlay pixels
     const svgRect  = svgEl.getBoundingClientRect();

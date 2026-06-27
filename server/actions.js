@@ -1,6 +1,6 @@
 import { SEEDS } from './seeds.js';
 import { PATH_MAP, LOCATION_MAP } from './world.js';
-import { TENDING_DURATION, SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS, GROWN_TICKS } from './constants.js';
+import { SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS, GROWN_TICKS, SEEDLING_TICKS, FRUITING_TICKS, DEAD_TICKS, POT_EMPTY_DURATION, POT_SEED_DURATION, POT_SEEDLING_DURATION, POT_GROWN_DURATION, POT_FRUITING_DURATION, POT_DEAD_DURATION } from './constants.js';
 import { pickInitialRules } from './rules.js';
 
 function fail(error) {
@@ -53,7 +53,7 @@ export function createOrRestoreGardener(deviceId, state) {
     pathId: null,
     pathFrom: null,
     progress: 0,
-    seed: null,
+    seed: originSeedObj ? originSeedObj.id : null,
     tendingUntil: null,
     encounteredThisTrip: [],
     arrivedEncounters: null,
@@ -64,6 +64,8 @@ export function createOrRestoreGardener(deviceId, state) {
     rules,
     ruleSlots: INITIAL_RULE_SLOTS,
     speedBonus: 1.0,
+    availableSeeds: null,
+    locationMemory: {},
     record: {
       wanderings: [spawnLocation],
       seedLog,
@@ -147,6 +149,7 @@ export function pot(deviceId, potId, seedId, state) {
     return fail('Pot is still settling');
   }
 
+  const tendingDuration = potTendingDuration(potObj, state.tick);
   clearPotDecorators(potObj, state);
 
   potObj.seedId = seedId;
@@ -155,7 +158,7 @@ export function pot(deviceId, potId, seedId, state) {
 
   gardener.energy -= ENERGY_COST_PLANT;
   gardener.state = 'tending';
-  gardener.tendingUntil = state.tick + TENDING_DURATION;
+  gardener.tendingUntil = state.tick + tendingDuration;
   gardener.lastActiveTick = state.tick;
 
   return ok();
@@ -216,7 +219,33 @@ export function walk(deviceId, pathId, state) {
     return fail('Path does not connect to current location');
   }
 
-  gardener.pathFrom = gardener.locationId;
+  const locId = gardener.locationId;
+  const locData = state.locations[locId];
+
+  // Snapshot available seeds from this location before leaving
+  const originSeedWalk = SEEDS.find(s => s.locationId === locId);
+  const poolSet = new Set();
+  if (originSeedWalk) poolSet.add(originSeedWalk.id);
+  if (gardener.seed) poolSet.add(gardener.seed);
+  for (const p of locData.pots) {
+    if (p.seedId && p.lastPlantedTick !== null &&
+        (state.tick - p.lastPlantedTick) >= GROWN_TICKS) {
+      poolSet.add(p.seedId);
+    }
+  }
+  for (const [dId, g] of Object.entries(state.gardeners)) {
+    if (dId !== deviceId && g.locationId === locId &&
+        (g.state === 'resting' || g.state === 'tending') && g.seed) {
+      poolSet.add(g.seed);
+    }
+  }
+  gardener.availableSeeds = [...poolSet];
+
+  // Snapshot pot layout for location memory
+  if (!gardener.locationMemory) gardener.locationMemory = {};
+  gardener.locationMemory[locId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId }));
+
+  gardener.pathFrom = locId;
   gardener.pathId = pathId;
   gardener.progress = 0;
   gardener.state = 'walking';
@@ -291,9 +320,20 @@ export function continuee(deviceId, state) {
   gardener.state = 'resting';
   // locationId is already set from arrival
   gardener.arrivedEncounters = null;
+  gardener.availableSeeds = null;
   gardener.lastActiveTick = state.tick;
 
   return ok();
+}
+
+function potTendingDuration(potObj, tick) {
+  if (!potObj.seedId || potObj.lastPlantedTick === null) return POT_EMPTY_DURATION;
+  const age = tick - potObj.lastPlantedTick;
+  if (age >= DEAD_TICKS)     return POT_DEAD_DURATION;
+  if (age >= FRUITING_TICKS) return POT_FRUITING_DURATION;
+  if (age >= GROWN_TICKS)    return POT_GROWN_DURATION;
+  if (age >= SEEDLING_TICKS) return POT_SEEDLING_DURATION;
+  return POT_SEED_DURATION;
 }
 
 function clearPotDecorators(potObj, state) {
@@ -343,6 +383,20 @@ export function deleteRule(deviceId, ruleId, state) {
   }
   rule.deletedTick = state.tick;
   rule.refreshAt = state.tick + RULE_REFRESH_TICKS;
+  gardener.lastActiveTick = state.tick;
+  return ok();
+}
+
+export function pickSeed(deviceId, seedId, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  if (gardener.state !== 'walking' && gardener.state !== 'arriving') {
+    return fail('Must be walking or arriving');
+  }
+  if (!gardener.availableSeeds || !gardener.availableSeeds.includes(seedId)) {
+    return fail('Seed not available');
+  }
+  gardener.seed = seedId;
   gardener.lastActiveTick = state.tick;
   return ok();
 }

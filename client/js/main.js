@@ -1,5 +1,5 @@
 import { connect, sendAction } from './network.js';
-import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId, setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId } from './state.js';
+import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId, setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId, getConnected } from './state.js';
 import { render } from './render.js';
 import { SEED_MAP } from './seeds.js';
 import { ensurePlaying, toggleMusic } from './audio.js';
@@ -73,6 +73,14 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'delete_rule': {
       sendAction({ type: 'delete_rule', ruleId: btn.dataset.ruleId });
+      break;
+    }
+    case 'join': {
+      sendAction({ type: 'join' });
+      break;
+    }
+    case 'pick_seed': {
+      sendAction({ type: 'pick_seed', seedId: btn.dataset.seedId });
       break;
     }
     case 'toggle_music': {

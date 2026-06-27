@@ -1,6 +1,6 @@
 import { getState, getTab, getSelectedNurserySeedId, getSelectedPotId } from '../state.js';
 import { formatDistance, formatDuration } from '../utils.js';
-import { SEED_MAP } from '../seeds.js';
+import { SEED_MAP, SEEDS } from '../seeds.js';
 import { getPathsForLocation, LOCATION_MAP } from '../world.js';
 import { renderMap } from './map.js';
 import { renderRecord } from './record.js';
@@ -301,50 +301,48 @@ export function renderLocation(app) {
       html += `</div></div>`;
     }
 
-    // ── 4. Carrying (controls what you take on walks) ─────────────────────
-    {
-      const carriedSeed = SEED_MAP[gardener.seed];
-      const carriedColor = carriedSeed ? carriedSeed.color : null;
-      html += `<div class="section carry-section">
-        <div class="carry-header">
-          <span class="carry-label-heading">Carrying</span>
-          <div class="carry-current">
-            ${gardener.seed
-              ? `${seedIcon(gardener.seed)}<span class="carry-name" style="color:${carriedColor}">${carriedSeed ? carriedSeed.name : gardener.seed}</span>`
-              : `<span class="carry-empty">Nothing</span>`}
-          </div>
-        </div>`;
-      if (gardener.state === 'resting' && location.seedPool && location.seedPool.length > 0) {
-        html += `<div class="carry-swap">`;
-        const noSeedSelected = gardener.seed === null;
-        html += `<button class="carry-chip${noSeedSelected ? ' selected' : ''}" data-action="swap" data-seed-id="" ${noSeedSelected ? 'disabled' : ''}>No Seed</button>`;
-        for (const seedId of location.seedPool) {
-          const seed = SEED_MAP[seedId];
-          const color = seed ? seed.color : '#666';
-          const isSelected = gardener.seed === seedId;
-          html += `<button class="carry-chip${isSelected ? ' selected' : ''}" data-action="swap" data-seed-id="${seedId}" ${isSelected ? 'disabled' : ''} style="--chip-color:${color}">
-            <span class="carry-chip-dot" style="background:${color}"></span>${seed ? seed.name : seedId}
-          </button>`;
-        }
-        html += `</div>`;
-      }
-      html += `</div>`;
-    }
-
-    // ── 5. Travel ─────────────────────────────────────────────────────────
+    // ── 4. Travel ─────────────────────────────────────────────────────────
     const paths = getPathsForLocation(gardener.locationId);
     if (paths.length > 0 && gardener.state === 'resting') {
+      const originBySeedLoc = Object.fromEntries(SEEDS.filter(s => s.locationId).map(s => [s.locationId, s]));
+      const visited = new Set(state.record ? state.record.wanderings : []);
       html += `<div class="section"><h3>Travel</h3><div class="paths-list">`;
       for (const path of paths) {
         const destId = path.fromId === gardener.locationId ? path.toId : path.fromId;
         const dest = LOCATION_MAP[destId];
         const destName = dest ? dest.name : destId;
         const ticks = Math.ceil(path.length / movementSpeed);
+        const isVisited = visited.has(destId);
+        const originSeed = originBySeedLoc[destId];
+
+        let destLabel;
+        let memStrip = '';
+        if (isVisited) {
+          const sym = originSeed ? `<span style="color:${originSeed.color}">${originSeed.symbol}</span> ` : '';
+          destLabel = `${sym}${destName}`;
+          const memPots = (gardener.locationMemory || {})[destId];
+          if (memPots) {
+            memStrip = `<div class="pot-memory-strip">`;
+            for (const mp of memPots) {
+              if (mp.seedId) {
+                const s = SEED_MAP[mp.seedId];
+                memStrip += `<span class="pot-mem-dot" style="background:${s ? s.color : '#666'}"></span>`;
+              } else {
+                memStrip += `<span class="pot-mem-dot pot-mem-dot-empty"></span>`;
+              }
+            }
+            memStrip += `</div>`;
+          }
+        } else {
+          destLabel = `${destName} <span class="badge-new">new</span>`;
+        }
+
         html += `
           <div class="path-row">
             <div class="path-info">
-              <div class="path-dest">${destName}</div>
+              <div class="path-dest">${destLabel}</div>
               <div class="path-dist">${formatDistance(path.length)} &middot; ~${formatDuration(ticks)}</div>
+              ${memStrip}
             </div>
             <button class="btn btn-sm" data-action="walk" data-path-id="${path.id}">Walk</button>
           </div>`;
