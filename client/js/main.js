@@ -1,5 +1,5 @@
 import { connect, sendAction } from './network.js';
-import { getState, getTab, setTab } from './state.js';
+import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId } from './state.js';
 import { render } from './render.js';
 import { SEED_MAP } from './seeds.js';
 
@@ -12,6 +12,18 @@ document.getElementById('app').addEventListener('click', (e) => {
   switch (action) {
     case 'tab': {
       setTab(btn.dataset.tab);
+      render();
+      break;
+    }
+    case 'select_nursery_seed': {
+      const id = btn.dataset.seedId || null;
+      setSelectedNurserySeedId(id === getSelectedNurserySeedId() ? null : id);
+      render();
+      break;
+    }
+    case 'select_pot': {
+      const id = btn.dataset.potId;
+      setSelectedPotId(id === getSelectedPotId() ? null : id);
       render();
       break;
     }
@@ -28,7 +40,7 @@ document.getElementById('app').addEventListener('click', (e) => {
       break;
     }
     case 'pot': {
-      sendAction({ type: 'pot', potId: btn.dataset.potId });
+      sendAction({ type: 'pot', potId: btn.dataset.potId, seedId: btn.dataset.seedId || getSelectedNurserySeedId() || null });
       break;
     }
     case 'walk': {

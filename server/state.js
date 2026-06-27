@@ -25,7 +25,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 8;
+const CURRENT_VERSION = 9;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
@@ -100,10 +100,11 @@ export function getGardenerView(deviceId) {
       };
     });
 
-    // Build seedPool: origin seed + planted seeds + seeds carried by others here
+    // Build seedPool: origin seed + planted seeds + your carried seed + seeds carried by others here
     const originSeed = SEEDS.find(s => s.locationId === gardener.locationId);
     const poolSet = new Set();
     if (originSeed) poolSet.add(originSeed.id);
+    if (gardener.seed) poolSet.add(gardener.seed);
     for (const pot of locData.pots) {
       if (pot.seedId && pot.lastPlantedTick !== null &&
           (tick - pot.lastPlantedTick) >= GROWN_TICKS) {
@@ -208,6 +209,7 @@ export function getGardenerView(deviceId) {
     return {
       id: rule.id,
       templateId: rule.templateId,
+      level: rule.level,
       description: rule.description,
       difficulty: rule.difficulty,
       completed: rule.completed,

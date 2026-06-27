@@ -1,3 +1,42 @@
+const SEED_NAMES = {
+  velour_bloom:   'Velour Bloom',
+  cinder_fern:    'Cinder Fern',
+  mirewort:       'Mirewort',
+  stonecress:     'Stonecress',
+  ember_weed:     'Ember Weed',
+  wanderbloom:    'Wanderbloom',
+  goldthread:     'Goldthread',
+  salthorn:       'Salthorn',
+  rainfall_lily:  'Rainfall Lily',
+  quietbranch:    'Quietbranch',
+  thornwhisper:   'Thornwhisper',
+  glassroot:      'Glassroot',
+  ironmoss:       'Ironmoss',
+  duskbell:       'Duskbell',
+  murmuring_sage: 'Murmuring Sage',
+};
+
+const ALL_SEEDS = Object.keys(SEED_NAMES);
+
+// Adjacent ring of pairs — each seed has exactly two neighbours
+const PAIRS = [
+  ['velour_bloom',  'cinder_fern'],
+  ['cinder_fern',   'mirewort'],
+  ['mirewort',      'stonecress'],
+  ['stonecress',    'ember_weed'],
+  ['ember_weed',    'wanderbloom'],
+  ['wanderbloom',   'goldthread'],
+  ['goldthread',    'salthorn'],
+  ['salthorn',      'rainfall_lily'],
+  ['rainfall_lily', 'quietbranch'],
+  ['quietbranch',   'thornwhisper'],
+  ['thornwhisper',  'glassroot'],
+  ['glassroot',     'ironmoss'],
+  ['ironmoss',      'duskbell'],
+  ['duskbell',      'murmuring_sage'],
+  ['murmuring_sage','velour_bloom'],
+];
+
 function adjCheck(seedA, seedB) {
   return (pots) => {
     for (let i = 0; i < pots.length; i++) {
@@ -10,62 +49,175 @@ function adjCheck(seedA, seedB) {
   };
 }
 
-export const RULE_TEMPLATES = [
-  // ── Single-seed presence (difficulty 2: need to see it at 2 locations) ────
-  { id: 'velour_bloom_present',   description: 'A Velour Bloom is growing here',    difficulty: 2, check: (p) => p.some(x => x.seedId === 'velour_bloom') },
-  { id: 'cinder_fern_present',    description: 'A Cinder Fern is growing here',     difficulty: 2, check: (p) => p.some(x => x.seedId === 'cinder_fern') },
-  { id: 'mirewort_present',       description: 'Mirewort is growing here',           difficulty: 2, check: (p) => p.some(x => x.seedId === 'mirewort') },
-  { id: 'stonecress_present',     description: 'Stonecress is growing here',         difficulty: 2, check: (p) => p.some(x => x.seedId === 'stonecress') },
-  { id: 'ember_weed_present',     description: 'Ember Weed is growing here',         difficulty: 2, check: (p) => p.some(x => x.seedId === 'ember_weed') },
-  { id: 'wanderbloom_present',    description: 'A Wanderbloom is growing here',      difficulty: 2, check: (p) => p.some(x => x.seedId === 'wanderbloom') },
-  { id: 'goldthread_present',     description: 'Goldthread is growing here',         difficulty: 2, check: (p) => p.some(x => x.seedId === 'goldthread') },
-  { id: 'salthorn_present',       description: 'Salthorn is growing here',           difficulty: 2, check: (p) => p.some(x => x.seedId === 'salthorn') },
-  { id: 'rainfall_lily_present',  description: 'A Rainfall Lily is growing here',   difficulty: 2, check: (p) => p.some(x => x.seedId === 'rainfall_lily') },
-  { id: 'quietbranch_present',    description: 'A Quietbranch is growing here',     difficulty: 2, check: (p) => p.some(x => x.seedId === 'quietbranch') },
-  { id: 'thornwhisper_present',   description: 'Thornwhisper is growing here',       difficulty: 2, check: (p) => p.some(x => x.seedId === 'thornwhisper') },
-  { id: 'glassroot_present',      description: 'Glassroot is growing here',          difficulty: 2, check: (p) => p.some(x => x.seedId === 'glassroot') },
-  { id: 'ironmoss_present',       description: 'Ironmoss is growing here',           difficulty: 2, check: (p) => p.some(x => x.seedId === 'ironmoss') },
-  { id: 'duskbell_present',       description: 'A Duskbell is growing here',         difficulty: 2, check: (p) => p.some(x => x.seedId === 'duskbell') },
-  { id: 'murmuring_sage_present', description: 'Murmuring Sage is growing here',    difficulty: 2, check: (p) => p.some(x => x.seedId === 'murmuring_sage') },
+function nextToEmptyCheck(seedId) {
+  return (pots) => {
+    for (let i = 0; i < pots.length; i++) {
+      if (pots[i].seedId === seedId) {
+        const prev = pots[(i - 1 + pots.length) % pots.length];
+        const next = pots[(i + 1) % pots.length];
+        if (!prev.seedId || !next.seedId) return true;
+      }
+    }
+    return false;
+  };
+}
 
-  // ── Two-seed co-presence (difficulty 1: find both at the same location once) ─
-  { id: 'mirewort_glassroot',        description: 'Mirewort and Glassroot grow together',           difficulty: 1, check: (p) => p.some(x => x.seedId === 'mirewort')      && p.some(x => x.seedId === 'glassroot') },
-  { id: 'cinder_fern_ember_weed',    description: 'Cinder Fern and Ember Weed grow together',      difficulty: 1, check: (p) => p.some(x => x.seedId === 'cinder_fern')   && p.some(x => x.seedId === 'ember_weed') },
-  { id: 'velour_bloom_duskbell',     description: 'Velour Bloom and Duskbell grow together',        difficulty: 1, check: (p) => p.some(x => x.seedId === 'velour_bloom')  && p.some(x => x.seedId === 'duskbell') },
-  { id: 'goldthread_wanderbloom',    description: 'Goldthread and Wanderbloom grow together',       difficulty: 1, check: (p) => p.some(x => x.seedId === 'goldthread')    && p.some(x => x.seedId === 'wanderbloom') },
-  { id: 'quietbranch_thornwhisper',  description: 'Quietbranch and Thornwhisper grow together',    difficulty: 1, check: (p) => p.some(x => x.seedId === 'quietbranch')   && p.some(x => x.seedId === 'thornwhisper') },
-  { id: 'stonecress_salthorn',       description: 'Stonecress and Salthorn grow together',          difficulty: 1, check: (p) => p.some(x => x.seedId === 'stonecress')    && p.some(x => x.seedId === 'salthorn') },
-  { id: 'rainfall_lily_mirewort',    description: 'Rainfall Lily and Mirewort grow together',      difficulty: 1, check: (p) => p.some(x => x.seedId === 'rainfall_lily') && p.some(x => x.seedId === 'mirewort') },
-  { id: 'ironmoss_murmuring_sage',   description: 'Ironmoss and Murmuring Sage grow together',     difficulty: 1, check: (p) => p.some(x => x.seedId === 'ironmoss')      && p.some(x => x.seedId === 'murmuring_sage') },
+// seedA is flanked by two seedB neighbours
+function sandwichCheck(seedA, seedB) {
+  return (pots) => {
+    for (let i = 0; i < pots.length; i++) {
+      if (pots[i].seedId === seedA) {
+        const prev = pots[(i - 1 + pots.length) % pots.length];
+        const next = pots[(i + 1) % pots.length];
+        if (prev.seedId === seedB && next.seedId === seedB) return true;
+      }
+    }
+    return false;
+  };
+}
 
-  // ── Adjacency (difficulty 1: arrange two specific seeds in adjacent pots) ───
-  // Pot 0 is adjacent to the last pot (circular arrangement)
-  { id: 'mirewort_adj_glassroot',       description: 'Mirewort grows next to Glassroot',           difficulty: 1, check: adjCheck('mirewort',      'glassroot') },
-  { id: 'cinder_fern_adj_ember_weed',   description: 'Cinder Fern grows next to Ember Weed',       difficulty: 1, check: adjCheck('cinder_fern',   'ember_weed') },
-  { id: 'velour_bloom_adj_duskbell',    description: 'Velour Bloom grows next to Duskbell',         difficulty: 1, check: adjCheck('velour_bloom',  'duskbell') },
-  { id: 'goldthread_adj_wanderbloom',   description: 'Goldthread grows next to Wanderbloom',        difficulty: 1, check: adjCheck('goldthread',    'wanderbloom') },
-  { id: 'quietbranch_adj_thornwhisper', description: 'Quietbranch grows next to Thornwhisper',     difficulty: 1, check: adjCheck('quietbranch',   'thornwhisper') },
-  { id: 'stonecress_adj_salthorn',      description: 'Stonecress grows next to Salthorn',           difficulty: 1, check: adjCheck('stonecress',    'salthorn') },
-  { id: 'rainfall_lily_adj_mirewort',   description: 'Rainfall Lily grows next to Mirewort',       difficulty: 1, check: adjCheck('rainfall_lily', 'mirewort') },
-  { id: 'ironmoss_adj_glassroot',       description: 'Ironmoss grows next to Glassroot',           difficulty: 1, check: adjCheck('ironmoss',      'glassroot') },
-];
+function makeTemplate(id, level, difficulty, description, seeds, check) {
+  return { id, level, difficulty, description, seeds, check };
+}
+
+export const RULE_TEMPLATES = [];
+
+// ── Level 1: single-seed presence (find 10 locations) ────────────────────────
+for (const seedId of ALL_SEEDS) {
+  const name = SEED_NAMES[seedId];
+  RULE_TEMPLATES.push(makeTemplate(
+    `${seedId}_present`,
+    1, 10,
+    `Discovered 10 locations where ${name} is planted`,
+    [seedId],
+    (p) => p.some(x => x.seedId === seedId),
+  ));
+}
+
+// ── Level 2a: co-presence pairs (find 10 locations) ──────────────────────────
+for (const [a, b] of PAIRS) {
+  RULE_TEMPLATES.push(makeTemplate(
+    `${a}_${b}_copresent`,
+    2, 10,
+    `Discovered 10 locations where ${SEED_NAMES[a]} and ${SEED_NAMES[b]} are both planted`,
+    [a, b],
+    (p) => p.some(x => x.seedId === a) && p.some(x => x.seedId === b),
+  ));
+}
+
+// ── Level 2b: adjacent pairs (find 5 locations) ───────────────────────────────
+for (const [a, b] of PAIRS) {
+  RULE_TEMPLATES.push(makeTemplate(
+    `${a}_${b}_adjacent`,
+    2, 5,
+    `Discovered 5 locations where ${SEED_NAMES[a]} and ${SEED_NAMES[b]} are planted adjacent to each other`,
+    [a, b],
+    adjCheck(a, b),
+  ));
+}
+
+// ── Level 2c: next to an empty pot (find 8 locations) ────────────────────────
+for (const seedId of ALL_SEEDS) {
+  RULE_TEMPLATES.push(makeTemplate(
+    `${seedId}_next_empty`,
+    2, 8,
+    `Discovered 8 locations where ${SEED_NAMES[seedId]} is planted next to an empty pot`,
+    [seedId],
+    nextToEmptyCheck(seedId),
+  ));
+}
+
+// ── Level 3a: sandwich — seedA flanked by two seedB (find 5 locations) ────────
+// Both directions so every seed can appear as "the centre"
+for (const [a, b] of PAIRS) {
+  RULE_TEMPLATES.push(makeTemplate(
+    `${b}_sandwiches_${a}`,
+    3, 5,
+    `Discovered 5 locations where two ${SEED_NAMES[b]} are planted with ${SEED_NAMES[a]} between them`,
+    [a, b],
+    sandwichCheck(a, b),
+  ));
+  RULE_TEMPLATES.push(makeTemplate(
+    `${a}_sandwiches_${b}`,
+    3, 5,
+    `Discovered 5 locations where two ${SEED_NAMES[a]} are planted with ${SEED_NAMES[b]} between them`,
+    [a, b],
+    sandwichCheck(b, a),
+  ));
+}
+
+// ── Level 3b: all pots filled with the same plant (find 10 locations) ────────
+for (const seedId of ALL_SEEDS) {
+  RULE_TEMPLATES.push(makeTemplate(
+    `${seedId}_triple`,
+    3, 10,
+    `Discovered 10 locations where ${SEED_NAMES[seedId]} is planted at least 3 times`,
+    [seedId],
+    (p) => p.filter(x => x.seedId === seedId).length >= 3,
+  ));
+}
 
 export const RULE_TEMPLATE_MAP = Object.fromEntries(RULE_TEMPLATES.map(r => [r.id, r]));
 
-export function pickNewRule(existingRules = []) {
-  const usedIds = new Set(existingRules.map(r => r.templateId));
-  const available = RULE_TEMPLATES.filter(t => !usedIds.has(t.id));
-  if (!available.length) return null;
-  const template = available[Math.floor(Math.random() * available.length)];
+function makeRuleInstance(template) {
   let id = '';
   for (let i = 0; i < 4; i++) id += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
   return {
     id,
-    templateId: template.id,
-    difficulty: template.difficulty,
+    templateId:  template.id,
+    level:       template.level,
+    difficulty:  template.difficulty,
     description: template.description,
-    completed: false,
+    completed:   false,
     deletedTick: null,
-    refreshAt: null,
+    refreshAt:   null,
   };
+}
+
+function pickFromLevel(level, preferSeedId, usedTemplateIds) {
+  let candidates = RULE_TEMPLATES.filter(t =>
+    t.level === level &&
+    !usedTemplateIds.has(t.id) &&
+    (preferSeedId ? t.seeds.includes(preferSeedId) : true),
+  );
+  // Fallback: any unused template at this level
+  if (!candidates.length && preferSeedId) {
+    candidates = RULE_TEMPLATES.filter(t => t.level === level && !usedTemplateIds.has(t.id));
+  }
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random() * candidates.length)];
+  usedTemplateIds.add(t.id);
+  return makeRuleInstance(t);
+}
+
+// Build the 4 starting rules (2×L1, 1×L2, 1×L3) biased toward originSeedId
+export function pickInitialRules(originSeedId) {
+  const rules = [];
+  const used = new Set();
+
+  const l1a = pickFromLevel(1, originSeedId, used);
+  if (l1a) rules.push(l1a);
+
+  // Second L1: prefer origin seed again (will pick a different type if L1 for origin exhausted)
+  const l1b = pickFromLevel(1, null, used);
+  if (l1b) rules.push(l1b);
+
+  const l2 = pickFromLevel(2, originSeedId, used);
+  if (l2) rules.push(l2);
+
+  const l3 = pickFromLevel(3, originSeedId, used);
+  if (l3) rules.push(l3);
+
+  return rules;
+}
+
+// Pick a replacement rule at the same level (for refresh)
+export function pickNewRuleForLevel(level, existingRules = []) {
+  const usedIds = new Set(
+    existingRules.filter(r => r.deletedTick === null).map(r => r.templateId),
+  );
+  const candidates = RULE_TEMPLATES.filter(t => t.level === level && !usedIds.has(t.id));
+  if (!candidates.length) return null;
+  const t = candidates[Math.floor(Math.random() * candidates.length)];
+  return makeRuleInstance(t);
 }

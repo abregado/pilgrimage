@@ -823,3 +823,155 @@ h3 {
 /* ── Muted text ─────────────────────────────────── */
 .muted { color: var(--muted); font-size: 13px; }
 .center { text-align: center; }
+
+/* ── Population row ─────────────────────────────── */
+.population-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.population-count {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* ── Pots wheel (circular layout) ───────────────── */
+.pots-wheel {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1;
+  margin: 0 auto;
+  user-select: none;
+}
+
+.pot-item {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 70px;
+  height: 70px;
+  background: none;
+  border: none;
+  padding: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pot-circle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pot-item:hover .pot-circle    { border-color: var(--muted); }
+.pot-item.selected .pot-circle { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(201,168,76,0.25); }
+.pot-circle.settling           { border-color: var(--sage); border-style: dashed; }
+.pot-circle.origin             { border-color: rgba(201,168,76,0.45); }
+
+.pot-wheel-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.pot-symbol {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  pointer-events: none;
+  line-height: 1;
+  text-shadow: 0 0 4px var(--bg);
+}
+
+/* Centre info panel */
+.pots-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 44%;
+  max-width: 130px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.pot-center-name    { font-size: 11px; font-weight: 600; line-height: 1.3; }
+.pot-center-stage   { font-size: 10px; }
+.pot-center-next    { font-size: 9px; color: var(--muted); }
+.pot-center-settling{ font-size: 9px; color: var(--sage); }
+.pot-center-dec     { font-size: 9px; color: var(--muted); }
+.pot-center-empty   { font-size: 11px; color: var(--muted); font-style: italic; }
+.pot-center-hint    { font-size: 10px; color: var(--muted); font-style: italic; }
+
+.pots-center .btn   { font-size: 10px; padding: 4px 8px; min-height: 28px; width: 100%; margin-top: 2px; }
+
+/* ── Nursery (select for planting) ──────────────── */
+.nursery-seed.planting-selected {
+  border-color: var(--accent);
+  background: rgba(201,168,76,0.1);
+}
+
+.nursery-carry-dot {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--sage);
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+.nursery-seed { position: relative; }
+
+.nursery-hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+  text-align: center;
+}
+
+.nursery-hint strong { color: var(--text); }
+
+/* ── Vision level badges ─────────────────────────── */
+.vision-card { position: relative; }
+
+.vision-level-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+.vision-level-badge.level-1 { background: rgba(107,143,113,0.2); color: var(--sage); }
+.vision-level-badge.level-2 { background: rgba(201,168,76,0.2);  color: var(--accent); }
+.vision-level-badge.level-3 { background: rgba(176,64,64,0.2);   color: #d97070; }
+
+.vision-refresh-btn { font-size: 9px; padding: 2px 7px; min-height: 22px; }
+
+.btn-muted {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--muted);
+}

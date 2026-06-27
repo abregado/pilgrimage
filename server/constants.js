@@ -13,5 +13,5 @@ export const GROWN_TICKS    = 21600;   // 6 hours
 export const FRUITING_TICKS = 604800;  // 1 week
 export const DEAD_TICKS     = 2592000; // ~30 days
 
-export const INITIAL_RULE_SLOTS  = 2;
+export const INITIAL_RULE_SLOTS  = 4;
 export const RULE_REFRESH_TICKS  = 60;  // 1 minute

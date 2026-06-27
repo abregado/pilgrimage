@@ -1,0 +1,13 @@
+add in those headers to not cache anything so the browser always goes to the right place.
+
+The top pot is highlighted yellow all the time.
+
+the seed symbols on Pots should be on our outer side of the plant pot visualization.
+
+the seed symbols on pots should be larger
+
+Decorations are shown as small red filled circles equidistant  around the circumferance of a Pot. 
+
+Make the Pot display 20% larger without increasing the side of the Pots.
+
+In the Pilgrim Record remove the Garden and Wandering section.

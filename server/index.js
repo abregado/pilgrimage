@@ -51,7 +51,7 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'decorate')    result = actions.decorate(deviceId, msg.potId, state);
     else if (msg.type === 'undecorate') result = actions.undecorate(deviceId, msg.potId, state);
-    else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, state);
+    else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, msg.seedId || null, state);
     else if (msg.type === 'swap')   result = actions.swap(deviceId, msg.seedId, state);
     else if (msg.type === 'walk')   result = actions.walk(deviceId, msg.pathId, state);
     else if (msg.type === 'reverse') result = actions.reverse(deviceId, state);

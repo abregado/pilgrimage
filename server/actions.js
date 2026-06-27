@@ -1,7 +1,7 @@
 import { SEEDS } from './seeds.js';
 import { PATH_MAP, LOCATION_MAP } from './world.js';
-import { TENDING_DURATION, SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS } from './constants.js';
-import { pickNewRule } from './rules.js';
+import { TENDING_DURATION, SETTLING_DURATION, BASE_ENERGY_MAX, ENERGY_COST_PLANT, INITIAL_RULE_SLOTS, RULE_REFRESH_TICKS, GROWN_TICKS } from './constants.js';
+import { pickInitialRules } from './rules.js';
 
 function fail(error) {
   return { ok: false, error };
@@ -43,11 +43,8 @@ export function createOrRestoreGardener(deviceId, state) {
     seedLog[seed.id] = { seed: false, seedling: false, grown: false, fruiting: false, dead: false };
   }
 
-  const rules = [];
-  for (let i = 0; i < INITIAL_RULE_SLOTS; i++) {
-    const rule = pickNewRule(rules);
-    if (rule) rules.push(rule);
-  }
+  const originSeedObj = SEEDS.find(s => s.locationId === spawnLocation);
+  const rules = pickInitialRules(originSeedObj ? originSeedObj.id : null);
 
   state.gardeners[deviceId] = {
     id,
@@ -103,7 +100,7 @@ export function decorate(deviceId, potId, state) {
   return ok();
 }
 
-export function pot(deviceId, potId, state) {
+export function pot(deviceId, potId, seedId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
@@ -115,8 +112,8 @@ export function pot(deviceId, potId, state) {
   const potObj = locData.pots.find(p => p.id === potId);
   if (!potObj) return fail('Pot not found at this location');
 
-  // No seed carried → clear the pot
-  if (!gardener.seed) {
+  // No seedId → clear the pot
+  if (!seedId) {
     if (!potObj.seedId) return fail('Pot is already empty');
     potObj.seedId = null;
     potObj.lastPlantedTick = null;
@@ -126,16 +123,33 @@ export function pot(deviceId, potId, state) {
     return ok();
   }
 
-  // Seed carried → place it
+  // Validate seedId is available in the nursery pool
+  const originSeed = SEEDS.find(s => s.locationId === gardener.locationId);
+  const poolSet = new Set();
+  if (originSeed) poolSet.add(originSeed.id);
+  if (gardener.seed) poolSet.add(gardener.seed);
+  for (const p of locData.pots) {
+    if (p.seedId && p.lastPlantedTick !== null &&
+        (state.tick - p.lastPlantedTick) >= GROWN_TICKS) {
+      poolSet.add(p.seedId);
+    }
+  }
+  for (const [dId, g] of Object.entries(state.gardeners)) {
+    if (dId !== deviceId && g.locationId === gardener.locationId &&
+        (g.state === 'resting' || g.state === 'tending') && g.seed) {
+      poolSet.add(g.seed);
+    }
+  }
+  if (!poolSet.has(seedId)) return fail('Seed not available here');
+
   if (gardener.energy < ENERGY_COST_PLANT) return fail('Not enough energy');
   if (potObj.settlingUntil !== null && potObj.settlingUntil > state.tick) {
     return fail('Pot is still settling');
   }
 
-  // Clear any existing decorations when seed changes
   clearPotDecorators(potObj, state);
 
-  potObj.seedId = gardener.seed;
+  potObj.seedId = seedId;
   potObj.lastPlantedTick = state.tick;
   potObj.settlingUntil = state.tick + SETTLING_DURATION;
 

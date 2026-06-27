@@ -3,7 +3,7 @@ import { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
          RULE_REFRESH_TICKS } from './constants.js';
 import { PATH_MAP } from './world.js';
 import { computeEnergyMax } from './state.js';
-import { RULE_TEMPLATE_MAP, pickNewRule } from './rules.js';
+import { RULE_TEMPLATE_MAP, pickNewRuleForLevel } from './rules.js';
 
 export function startGameLoop(getState, saveState, broadcast) {
   setInterval(() => tick(getState, saveState, broadcast), TICK_RATE);
@@ -168,7 +168,7 @@ function tick(getState, saveState, broadcast) {
     for (let i = 0; i < gardener.rules.length; i++) {
       const rule = gardener.rules[i];
       if (rule.deletedTick !== null && state.tick >= rule.refreshAt) {
-        const fresh = pickNewRule(gardener.rules);
+        const fresh = pickNewRuleForLevel(rule.level, gardener.rules);
         if (fresh) { gardener.rules[i] = fresh; changed = true; }
       }
     }
@@ -185,17 +185,9 @@ function tick(getState, saveState, broadcast) {
       }
       if (count >= rule.difficulty) {
         rule.completed = true;
-        gardener.ruleSlots = (gardener.ruleSlots || 2) + 1;
         gardener.speedBonus = Math.round((gardener.speedBonus ?? 1) * 1.02 * 1000) / 1000;
         changed = true;
       }
-    }
-
-    while (gardener.rules.length < (gardener.ruleSlots || 2)) {
-      const fresh = pickNewRule(gardener.rules);
-      if (!fresh) break;
-      gardener.rules.push(fresh);
-      changed = true;
     }
   }
 
