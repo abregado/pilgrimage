@@ -133,13 +133,16 @@ export function pot(deviceId, potId, seedId, state) {
   const potObj = locData.pots.find(p => p.id === potId);
   if (!potObj) return fail('Pot not found at this location');
 
-  // No seedId → clear the pot
+  // No seedId → clear the pot (costs tending time based on plant's current stage)
   if (!seedId) {
     if (!potObj.seedId) return fail('Pot is already empty');
+    const tendingDuration = potTendingDuration(potObj, state.tick);
+    clearPotDecorators(potObj, state);
     potObj.seedId = null;
     potObj.lastPlantedTick = null;
-    potObj.decorators = [];
     potObj.settlingUntil = null;
+    gardener.state = 'tending';
+    gardener.tendingUntil = state.tick + tendingDuration;
     gardener.lastActiveTick = state.tick;
     return ok();
   }

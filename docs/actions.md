@@ -25,14 +25,15 @@ Called by `join` message handler.
 
 Guards: `resting`, at a location, pot exists at that location.
 
-- `seedId = null`: clears the pot (resets `seedId`, `lastPlantedTick`, `decorators`, `settlingUntil`).
+- `seedId = null`: **clears the pot**. Computes tending duration from the pot's current growth stage (same table as planting). Calls `clearPotDecorators`. Resets `pot.seedId`, `lastPlantedTick`, `settlingUntil = null`. Sets gardener to `tending` for the computed duration. No energy cost.
 - `seedId` set: validates seed is in the location's nursery pool; requires `energy >= 1`; pot must not be settling.
   - Computes tending duration from **existing** pot content's growth stage (see table below).
   - Clears existing pot's decorators (removes from all gardener records).
   - Sets `pot.seedId`, `pot.lastPlantedTick = tick`, `pot.settlingUntil = tick + 120`.
   - Deducts 1 energy. Sets gardener to `tending`, `tendingUntil = tick + duration`.
+  - Calls `checkRuleCompletion(gardener, state)` synchronously so vision progress updates immediately.
 
-### Tending duration by existing content stage
+### Tending duration by existing content stage (applies to both plant and clear)
 
 | Existing content     | Duration (ticks) |
 |----------------------|-----------------|
@@ -62,7 +63,15 @@ Then: clears `locationId`, sets `pathId`, `pathFrom`, `progress = 0`, `state = '
 
 Guard: `walking`.
 
-Flips direction: `progress = path.length - progress`, swaps `pathFrom` to the other end.
+Flips direction: `progress = path.length - progress`, swaps `pathFrom` to the other end. Also clears `gardener.travelQueue`.
+
+---
+
+## `queueTravel(deviceId, pathIds[], state)`
+
+Guard: `resting`, at a location, `pathIds` is a non-empty array.
+
+Validates that the array of path IDs forms a continuous chain from the gardener's current location. Stores `pathIds.slice(1)` in `gardener.travelQueue`, then calls `walk(deviceId, pathIds[0], state)` to start the first leg immediately. The game loop auto-starts subsequent legs on each intermediate arrival (step 3).
 
 ---
 

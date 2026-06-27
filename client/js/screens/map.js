@@ -93,13 +93,24 @@ export function renderMap(container, state) {
 
   const visiblePaths = PATHS.filter(p => visited.has(p.fromId) || visited.has(p.toId));
 
+  // Pre-compute route for both path highlighting and the travel button
+  let routePathIds = new Set();
+  let travelRoute = null;
+  if (canSelect && selectedLocId && selectedLocId !== currentLocId) {
+    travelRoute = computeRoute(currentLocId, selectedLocId, visited, adjacent);
+    if (travelRoute) {
+      for (const pid of travelRoute) routePathIds.add(pid);
+    }
+  }
+
   let svg = `<svg viewBox="0 0 ${SVG_W} ${SVG_H}" class="world-map" xmlns="http://www.w3.org/2000/svg">`;
 
   for (const p of visiblePaths) {
     const from = LOCATION_MAP[p.fromId];
     const to   = LOCATION_MAP[p.toId];
     if (!from || !to) continue;
-    svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="map-path visited"/>`;
+    const isRoute = routePathIds.has(p.id);
+    svg += `<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" class="map-path visited${isRoute ? ' route' : ''}"/>`;
   }
 
   for (const loc of LOCATIONS) {
@@ -115,15 +126,21 @@ export function renderMap(container, state) {
       (isSelectable ? ` data-action="select_map_loc"` : '');
 
     if (isVisited) {
-      const seed   = originByLoc[loc.id];
-      const symbol = seed ? seed.symbol : '·';
-      const color  = seed ? seed.color  : 'var(--muted)';
-      let cls = 'map-symbol';
-      if (isSelectable) cls += ' walkable';
-      if (isSelected)   cls += ' selected';
-      svg += `<text x="${loc.x}" y="${loc.y}" class="${cls}" ${attrs}
-        font-size="22" text-anchor="middle" dominant-baseline="central"
-        fill="${color}">${symbol}</text>`;
+      const seed = originByLoc[loc.id];
+      if (seed) {
+        let cls = 'map-node-img';
+        if (isSelectable) cls += ' walkable';
+        if (isSelected)   cls += ' selected';
+        svg += `<image href="/assets/seed_${seed.id}.svg"
+          x="${loc.x - 16}" y="${loc.y - 16}" width="32" height="32"
+          class="${cls}" ${attrs}/>`;
+      } else {
+        // Fallback for locations without a home seed
+        let cls = 'map-loc visited';
+        if (isSelectable) cls += ' walkable';
+        if (isSelected)   cls += ' selected';
+        svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
+      }
     } else {
       let cls = 'map-loc adjacent';
       if (isSelectable) cls += ' walkable';
@@ -160,24 +177,21 @@ export function renderMap(container, state) {
 
   svg += `</svg>`;
 
-  // Travel button with route + time estimate
+  // Travel button (uses pre-computed travelRoute)
   let travelButton = '';
-  if (canSelect && selectedLocId && selectedLocId !== currentLocId) {
-    const route = computeRoute(currentLocId, selectedLocId, visited, adjacent);
-    if (route && route.length > 0) {
-      const destName = LOCATION_MAP[selectedLocId]?.name ?? selectedLocId;
-      const effectiveSpeed = state.movementSpeed * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0));
-      const totalTicks = route.reduce((sum, pid) => {
-        const p = PATH_MAP[pid];
-        return sum + Math.ceil((p ? p.length : 0) / effectiveSpeed);
-      }, 0);
-      const pathIdsJson = JSON.stringify(route);
-      travelButton = `<div class="map-travel-bar">
-        <button class="btn" data-action="queue_travel" data-path-ids='${pathIdsJson}'>
-          Travel to ${destName} · ~${formatDuration(totalTicks)}
-        </button>
-      </div>`;
-    }
+  if (travelRoute && travelRoute.length > 0) {
+    const destName = LOCATION_MAP[selectedLocId]?.name ?? selectedLocId;
+    const effectiveSpeed = state.movementSpeed * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0));
+    const totalTicks = travelRoute.reduce((sum, pid) => {
+      const p = PATH_MAP[pid];
+      return sum + Math.ceil((p ? p.length : 0) / effectiveSpeed);
+    }, 0);
+    const pathIdsJson = JSON.stringify(travelRoute);
+    travelButton = `<div class="map-travel-bar">
+      <button class="btn" data-action="queue_travel" data-path-ids='${pathIdsJson}'>
+        Travel to ${destName} · ~${formatDuration(totalTicks)}
+      </button>
+    </div>`;
   }
 
   // Bottom widget: show core seed + last-seen pots for selected visited location
@@ -228,9 +242,7 @@ export function renderMap(container, state) {
     const locId = el.dataset.locId;
     const loc   = LOCATION_MAP[locId];
     if (!loc) return;
-    const isVis = visited.has(locId);
-    const seed  = originByLoc[locId];
-    const label = isVis ? `${seed?.symbol ?? ''} ${loc.name}`.trim() : loc.name;
+    const label = loc.name;
 
     const svgRect  = svgEl.getBoundingClientRect();
     const wrapRect = wrap.getBoundingClientRect();

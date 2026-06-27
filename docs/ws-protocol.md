@@ -27,6 +27,7 @@ All messages are JSON. Server is at `ws[s]://{host}`.
 | `pick_seed`   | `seedId`                        | Must be `walking` or `arriving`. `seedId` must be in `availableSeeds`. |
 | `continue`    | —                               | Must be `arriving`. Moves to `resting`; clears `availableSeeds`. |
 | `delete_rule` | `ruleId`                        | Marks rule as refreshing; starts 60-tick cooldown. |
+| `queue_travel`| `pathIds: string[]`             | Must be `resting`. Validates chain of pathIds from current location; starts first leg immediately, stores rest in `travelQueue`. |
 | `poll`        | —                               | No-op; triggers a broadcast (used to force a view refresh). |
 
 ---
@@ -35,7 +36,7 @@ All messages are JSON. Server is at `ws[s]://{host}`.
 
 | type    | fields                    | notes |
 |---------|---------------------------|-------|
-| `state` | `data: GardenerView\|null` | `null` = connected but no gardener yet (show join screen). Sent on connect, on every successful action, and on every tick. |
+| `state` | `data: GardenerView\|null` | `null` = connected but no gardener yet (show join screen). Sent on connect and on every successful action. During walking, only sent on arrival, encounter, or rule completion — not on every progress tick (client animates locally). |
 | `error` | `message: string`         | Sent when an action returns `{ ok: false }`. |
 
 ---

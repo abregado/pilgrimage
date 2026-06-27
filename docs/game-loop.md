@@ -26,16 +26,17 @@ progress += MOVEMENT_SPEED (100) × speedBonus × (1 + completedRules × 0.10)
 
 For every `walking` gardener whose `progress >= path.length`:
 
-- Sets `state = 'arriving'`, `locationId = destId`.
-- Moves `encounteredThisTrip` to `arrivedEncounters`.
 - Appends `destId` to `record.wanderings`.
-- Clears `pathId`, `pathFrom`, `progress = 0`.
+- **If `travelQueue` has a valid next path from `destId`**: shift it off the queue, snapshot seeds and locationMemory at the intermediate location, start walking the next leg immediately (stays `walking` state). The client receives a state update for this leg transition.
+- **Otherwise**: sets `state = 'arriving'`, `locationId = destId`. Moves `encounteredThisTrip` to `arrivedEncounters`. Clears `pathId`, `pathFrom`, `progress = 0`.
+
+In both cases the arriving gardener's `deviceId` is added to `notifySet` so they receive a state update.
 
 ---
 
 ## Step 4 — Encounters
 
-Two walkers on the same path, heading in **opposite directions**, cross when their combined absolute positions sum to approximately the path length (within a 2×MOVEMENT_SPEED window). Each records the other in `encounteredThisTrip` (idempotent). Seed stage `seed = true` is marked in each other's seedLog.
+Two walkers on the same path, heading in **opposite directions**, cross when their combined absolute positions sum to approximately the path length (within a 2×MOVEMENT_SPEED window). Each records the other in `encounteredThisTrip` (idempotent). Seed stage `seed = true` is marked in each other's seedLog. Both gardeners' deviceIds are added to `notifySet`.
 
 ---
 
@@ -96,6 +97,14 @@ If any `changed` flag was set: `saveState(state)`.
 
 ---
 
-## Step 12 — Broadcast
+## Step 12 — Selective broadcast
 
-`broadcast()` sends a fresh `GardenerView` to every connected client regardless of whether anything changed.
+`broadcast(notifySet)` sends a fresh `GardenerView` only to clients in `notifySet`.
+
+`notifySet` is built each tick:
+- All **non-walking** gardeners are always included (energy regen, tending expiry, rule changes, etc.).
+- **Walking** gardeners are only added when something meaningful happens to them: arrival (step 3), encounter (step 4), or rule completion (step 9).
+
+This means walking clients receive no network traffic for routine progress ticks — the client animates the meeple locally using `requestAnimationFrame` with `startTravelAnim()` exported from `location.js`.
+
+Action-triggered broadcasts (player clicks) still call `broadcast()` with no filter → all clients updated.

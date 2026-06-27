@@ -24,10 +24,18 @@ function tick(getState, saveState, broadcast) {
   const state = getState();
   let changed = false;
 
+  // Build gardener.id → deviceId reverse map; pre-populate notifySet with non-walking gardeners
+  const idToDevice = {};
+  const notifySet = new Set();
+  for (const [deviceId, g] of Object.entries(state.gardeners)) {
+    idToDevice[g.id] = deviceId;
+    if (g.state !== 'walking') notifySet.add(deviceId);
+  }
+
   // 1. Increment tick
   state.tick++;
 
-  // 2. Advance walking gardeners
+  // 2. Advance walking gardeners (client animates locally — no notify needed for progress only)
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state !== 'walking') continue;
     const completedRules = (gardener.rules || []).filter(r => r.completed && r.deletedTick === null).length;
@@ -35,8 +43,8 @@ function tick(getState, saveState, broadcast) {
     changed = true;
   }
 
-  // 3. Check for arrivals
-  for (const gardener of Object.values(state.gardeners)) {
+  // 3. Check for arrivals — notify the arriving gardener
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     if (gardener.state !== 'walking') continue;
     const path = PATH_MAP[gardener.pathId];
     if (!path) continue;
@@ -94,11 +102,12 @@ function tick(getState, saveState, broadcast) {
         gardener.progress = 0;
       }
 
+      notifySet.add(deviceId);
       changed = true;
     }
   }
 
-  // 4. Encounters between walking gardeners going opposite directions
+  // 4. Encounters between walking gardeners going opposite directions — notify both
   const pathGroups = {};
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state !== 'walking') continue;
@@ -134,6 +143,8 @@ function tick(getState, saveState, broadcast) {
         if (b.seed && a.record.seedLog[b.seed]) a.record.seedLog[b.seed].seed = true;
         if (a.seed && b.record.seedLog[a.seed]) b.record.seedLog[a.seed].seed = true;
 
+        notifySet.add(idToDevice[a.id]);
+        notifySet.add(idToDevice[b.id]);
         changed = true;
       }
     }
@@ -205,7 +216,7 @@ function tick(getState, saveState, broadcast) {
   }
 
   // 9. Rules: refresh cooling slots, evaluate completion, expand new slots
-  for (const gardener of Object.values(state.gardeners)) {
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     if (!gardener.rules) continue;
 
     for (let i = 0; i < gardener.rules.length; i++) {
@@ -229,6 +240,7 @@ function tick(getState, saveState, broadcast) {
       if (count >= rule.difficulty) {
         rule.completed = true;
         gardener.speedBonus = Math.round((gardener.speedBonus ?? 1) * 1.02 * 1000) / 1000;
+        notifySet.add(deviceId);
         changed = true;
       }
     }
@@ -245,6 +257,6 @@ function tick(getState, saveState, broadcast) {
   // 11. Save if changed
   if (changed) saveState(state);
 
-  // 12. Push updated view to all connected clients
-  broadcast();
+  // 12. Push updated view — walking clients only notified on meaningful events
+  broadcast(notifySet);
 }

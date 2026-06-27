@@ -29,8 +29,9 @@ function sendToClient(ws, msg) {
   if (ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
 
-function broadcast() {
+function broadcast(deviceIdsFilter = null) {
   for (const [deviceId, ws] of clients) {
+    if (deviceIdsFilter !== null && !deviceIdsFilter.has(deviceId)) continue;
     const view = getGardenerView(deviceId);
     if (view) sendToClient(ws, { type: 'state', data: view });
   }

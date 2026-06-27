@@ -11,9 +11,19 @@ export function getOrCreateDeviceId() {
 export function formatDuration(ticks) {
   if (ticks <= 0) return '0s';
   if (ticks < 60) return `${ticks}s`;
-  const m = Math.floor(ticks / 60);
-  const s = ticks % 60;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  if (ticks < 3600) {
+    const m = Math.floor(ticks / 60);
+    const s = ticks % 60;
+    return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  }
+  if (ticks < 86400) {
+    const h = Math.floor(ticks / 3600);
+    const m = Math.floor((ticks % 3600) / 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  const d = Math.floor(ticks / 86400);
+  const h = Math.floor((ticks % 86400) / 3600);
+  return h > 0 ? `${d}d ${h}h` : `${d}d`;
 }
 
 export function formatDistance(meters) {

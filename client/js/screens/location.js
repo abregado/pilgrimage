@@ -37,6 +37,13 @@ const GROWN_TICKS    = 21600;
 const FRUITING_TICKS = 604800;
 const DEAD_TICKS     = 2592000;
 
+const POT_EMPTY_DURATION    = 1;
+const POT_SEED_DURATION     = 60;
+const POT_SEEDLING_DURATION = 1200;
+const POT_GROWN_DURATION    = 3600;
+const POT_FRUITING_DURATION = 18000;
+const POT_DEAD_DURATION     = 1;
+
 function getGrowthStage(lastPlantedTick, currentTick) {
   if (lastPlantedTick === null || lastPlantedTick === undefined) return null;
   const age = currentTick - lastPlantedTick;
@@ -57,17 +64,80 @@ function timeToNextStage(lastPlantedTick, currentTick) {
   return null;
 }
 
+function potTendingDuration(pot, tick) {
+  if (!pot.seedId || pot.lastPlantedTick === null || pot.lastPlantedTick === undefined) {
+    return POT_EMPTY_DURATION;
+  }
+  const age = tick - pot.lastPlantedTick;
+  if (age >= DEAD_TICKS)     return POT_DEAD_DURATION;
+  if (age >= FRUITING_TICKS) return POT_FRUITING_DURATION;
+  if (age >= GROWN_TICKS)    return POT_GROWN_DURATION;
+  if (age >= SEEDLING_TICKS) return POT_SEEDLING_DURATION;
+  return POT_SEED_DURATION;
+}
+
+// ── Travel animation ──────────────────────────────────────────────────────────
+let _animId = null;
+let _animData = null;
+
+export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus) {
+  stopTravelAnim();
+  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
+  _animData = {
+    progress: path.progress,
+    startTime: performance.now(),
+    length: path.length,
+    effectiveSpeed,
+    goingRight: path.pathFrom === path.fromId,
+  };
+
+  function loop() {
+    if (!_animData) return;
+    const elapsed = (performance.now() - _animData.startTime) / 1000;
+    const progress = Math.min(_animData.length, _animData.progress + _animData.effectiveSpeed * elapsed);
+    const frac = progress / _animData.length;
+    const t = _animData.goingRight ? frac : (1 - frac);
+
+    const mx = (1-t)*(1-t)*20 + 2*(1-t)*t*150 + t*t*280;
+    const my = (1-t)*(1-t)*40 + 2*(1-t)*t*14 + t*t*40;
+
+    const meepleEl = document.getElementById('travel-meeple');
+    if (meepleEl) {
+      meepleEl.setAttribute('transform', `translate(${mx.toFixed(1)},${my.toFixed(1)})`);
+    }
+
+    const etaEl = document.getElementById('travel-eta');
+    if (etaEl) {
+      const remaining = Math.max(0, _animData.length - progress);
+      const ticksLeft = Math.ceil(remaining / _animData.effectiveSpeed);
+      etaEl.textContent = `${formatDistance(remaining)} remaining · ~${formatDuration(ticksLeft)}`;
+    }
+
+    _animId = requestAnimationFrame(loop);
+  }
+
+  _animId = requestAnimationFrame(loop);
+}
+
+export function stopTravelAnim() {
+  if (_animId !== null) {
+    cancelAnimationFrame(_animId);
+    _animId = null;
+  }
+  _animData = null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) {
   const frac = Math.min(1, path.progress / path.length);
   const remaining = path.length - path.progress;
   const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
   const ticksLeft = Math.ceil(remaining / effectiveSpeed);
 
-  // Fixed orientation: path.fromId on left, path.toId on right
   const fromName = path.fromName || path.fromId;
   const toName   = path.toName   || path.toId;
 
-  // Determine direction and meeple position along the bezier
   const goingRight = path.pathFrom === path.fromId;
   const t = goingRight ? frac : (1 - frac);
 
@@ -78,11 +148,12 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
   const clr  = '#c9a84c';
   const pClr = '#7a5c2e';
 
-  const arrowRight = `<polygon points="${mx+8},${my-9} ${mx+15},${my-5} ${mx+8},${my-1}" fill="${clr}"/>`;
-  const arrowLeft  = `<polygon points="${mx-8},${my-9} ${mx-15},${my-5} ${mx-8},${my-1}" fill="${clr}"/>`;
+  // Arrow points left or right of the head
+  const arrowRight = `<polygon points="8,-9 15,-5 8,-1" fill="${clr}"/>`;
+  const arrowLeft  = `<polygon points="-8,-9 -15,-5 -8,-1" fill="${clr}"/>`;
 
   const svg = `
-    <svg viewBox="0 0 300 80" class="path-visual-svg" xmlns="http://www.w3.org/2000/svg">
+    <svg id="travel-path-svg" viewBox="0 0 300 80" class="path-visual-svg" xmlns="http://www.w3.org/2000/svg">
       <path d="M 20 40 Q 150 14 280 40"
             stroke="${pClr}" stroke-width="3" stroke-dasharray="7,5"
             fill="none" stroke-linecap="round"/>
@@ -90,9 +161,11 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
       <line x1="27" y1="33" x2="13" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
       <line x1="273" y1="33" x2="287" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
       <line x1="287" y1="33" x2="273" y2="47" stroke="${pClr}" stroke-width="2.5" stroke-linecap="round"/>
-      <polygon points="${mx-5},${my+3} ${mx+5},${my+3} ${mx},${my+13}" fill="${clr}"/>
-      <circle cx="${mx}" cy="${my-5}" r="6" fill="${clr}"/>
-      ${goingRight ? arrowRight : arrowLeft}
+      <g id="travel-meeple" transform="translate(${mx},${my})">
+        <polygon points="-5,13 5,13 0,3" fill="${clr}"/>
+        <circle cx="0" cy="-5" r="6" fill="${clr}"/>
+        ${goingRight ? arrowRight : arrowLeft}
+      </g>
     </svg>`;
 
   return `
@@ -101,7 +174,7 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
         <span>${fromName}</span><span>${toName}</span>
       </div>
       ${svg}
-      <div class="path-visual-eta">${formatDistance(Math.max(0, remaining))} remaining · ~${formatDuration(ticksLeft)}</div>
+      <div id="travel-eta" class="path-visual-eta">${formatDistance(Math.max(0, remaining))} remaining · ~${formatDuration(ticksLeft)}</div>
     </div>`;
 }
 
@@ -128,8 +201,7 @@ function renderSeedPicker(seeds, currentSeed, promptText) {
 
 function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySeedId) {
   const n = pots.length;
-  const R  = 36;
-  const Rs = 48;
+  const R = 36;
 
   let html = `<div class="pots-wheel">`;
 
@@ -138,16 +210,13 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     const angle = (i * 2 * Math.PI / n) - Math.PI / 2;
     const px = Math.round(Math.cos(angle) * R * 10) / 10;
     const py = Math.round(Math.sin(angle) * R * 10) / 10;
-    const sx = Math.round(Math.cos(angle) * Rs * 10) / 10;
-    const sy = Math.round(Math.sin(angle) * Rs * 10) / 10;
 
     const isSelected = pot.id === selectedPotId;
     const stage = pot.seedId ? getGrowthStage(pot.lastPlantedTick, tick) : null;
-    const color = pot.seedId ? seedColor(pot.seedId) : null;
-    const sym   = pot.seedId ? seedSymbol(pot.seedId) : null;
 
+    // Decoration dots only visible for selected pot
     let decDots = '';
-    if (pot.decoratorCount > 0) {
+    if (isSelected && pot.decoratorCount > 0) {
       const dotR = 33;
       for (let d = 0; d < pot.decoratorCount; d++) {
         const da = (d * 2 * Math.PI / pot.decoratorCount) - Math.PI / 2;
@@ -165,17 +234,11 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
         data-action="select_pot" data-pot-id="${pot.id}"
         aria-label="${pot.seedId ? seedName(pot.seedId) : 'Empty pot'}">
         <div class="pot-circle${pot.settlingUntil !== null ? ' settling' : ''}">
-          ${stage ? `<img src="/assets/${pot.seedId}_${stage}.png" class="pot-wheel-img" alt="${stage}" onerror="this.style.display='none'">` : ''}
+          ${stage ? `<img src="/assets/${pot.seedId}_${stage}.png" class="pot-wheel-img" alt="${stage}" onerror="this.style.display='none'">` : `<img src="/assets/empty_pot.png" class="pot-wheel-img" alt="empty pot" onerror="this.style.display='none'">`}
+          ${pot.seedId ? `<img src="/assets/seed_${pot.seedId}.svg" class="pot-seed-overlay${isSelected ? ' selected' : ''}" alt="" onerror="this.style.display='none'">` : ''}
         </div>
         ${decDots}
       </button>`;
-
-    if (sym) {
-      html += `
-        <div class="pot-symbol" style="left:calc(50% + ${sx}%);top:calc(50% + ${sy}%);color:${color}">
-          ${sym}
-        </div>`;
-    }
   }
 
   html += `<div class="pots-center">`;
@@ -204,12 +267,16 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
         if (selectedNurserySeedId && pot.settlingUntil === null) {
           const canPlant = gardener.energy > 0;
           const name = seedName(selectedNurserySeedId);
+          const dur = potTendingDuration(pot, tick);
+          const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
           html += canPlant
-            ? `<button class="btn btn-sm btn-accent" data-action="pot" data-pot-id="${pot.id}">Plant ${name}</button>`
-            : `<button class="btn btn-sm" disabled title="No energy">Plant ${name}</button>`;
+            ? `<button class="btn btn-sm btn-accent" data-action="pot" data-pot-id="${pot.id}">Plant ${name} ${durLabel}</button>`
+            : `<button class="btn btn-sm" disabled title="No energy">Plant ${name} ${durLabel}</button>`;
         }
         if (!selectedNurserySeedId && pot.seedId) {
-          html += `<button class="btn btn-sm btn-danger" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear</button>`;
+          const dur = potTendingDuration(pot, tick);
+          const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
+          html += `<button class="btn btn-sm btn-danger" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear ${durLabel}</button>`;
         }
         if (pot.seedId) {
           if (pot.iDecorated) {

@@ -1,6 +1,7 @@
 import { getOrCreateDeviceId } from './utils.js';
 import { setState, setConnected, updateScreenFromState } from './state.js';
 import { render } from './render.js';
+import { startTravelAnim, stopTravelAnim } from './screens/location.js';
 
 let ws = null;
 
@@ -21,10 +22,23 @@ export function connect() {
       setState(msg.data);
       updateScreenFromState();
       render();
+
+      const gardener = msg.data?.gardener;
+      if (gardener?.state === 'walking' && msg.data.path) {
+        startTravelAnim(
+          msg.data.path,
+          msg.data.movementSpeed,
+          gardener.speedBonus,
+          msg.data.rulesSpeedBonus
+        );
+      } else {
+        stopTravelAnim();
+      }
     }
   };
 
   ws.onclose = () => {
+    stopTravelAnim();
     setTimeout(connect, 3000);
   };
 
