@@ -55,6 +55,13 @@ Energy cost applies to both **planting** and **clearing**. Potting is now instan
 | `SPEED_BONUS_PER_RULE`  | 0.10  | +10% per completed rule (additive in movement formula) |
 | `SPEED_BONUS_FULL_VISION`| 1.0  | +100% when all 4 rules are completed simultaneously    |
 
+## Fast travel
+
+| Constant            | Value | Meaning                                           |
+|---------------------|-------|---------------------------------------------------|
+| `FAST_TRAVEL_COST`  | 2     | Energy cost to activate fast travel               |
+| `FAST_TRAVEL_MULTI` | 5     | Speed multiplier applied while fast travel active |
+
 ### Speed formula
 
 ```

@@ -2,7 +2,7 @@ import {
   TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
   SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
   RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
-  RULE_SAFE_TIME, INITIAL_RULE_SLOTS,
+  RULE_SAFE_TIME, INITIAL_RULE_SLOTS, FAST_TRAVEL_MULTI,
 } from './constants.js';
 import { PATH_MAP } from './world.js';
 import { SEEDS } from './seeds.js';
@@ -44,7 +44,8 @@ function tick(getState, saveState, broadcast) {
     const activeRules = (gardener.rules || []).filter(r => r.deletedTick === null);
     const completedCount = activeRules.filter(r => r.completed).length;
     const fullVisionBonus = completedCount === INITIAL_RULE_SLOTS ? SPEED_BONUS_FULL_VISION : 0;
-    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus);
+    const fastMulti = gardener.fastTravel ? FAST_TRAVEL_MULTI : 1;
+    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus) * fastMulti;
     changed = true;
   }
 

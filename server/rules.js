@@ -111,7 +111,7 @@ for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_copresent`,
     2, 6,
-    `6 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} both planted`,
+    `6 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} both planted as seedlings or older`,
     [a, b],
     (p, tick) =>
       p.some(x => x.seedId === a && plantAge(x, tick) >= SEEDLING_TICKS) &&
@@ -124,7 +124,7 @@ for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_adjacent`,
     2, 3,
-    `3 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} planted adjacent to each other`,
+    `3 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} planted adjacent to each other as seedlings or older`,
     [a, b],
     adjCheck(a, b),
   ));
@@ -135,7 +135,7 @@ for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_next_empty`,
     2, 8,
-    `8 locations in the world have ${SEED_NAMES[seedId]} planted next to an empty pot`,
+    `8 locations in the world have ${SEED_NAMES[seedId]} planted as a seedling or older, next to an empty pot`,
     [seedId],
     nextToEmptyCheck(seedId),
   ));
@@ -146,14 +146,14 @@ for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${b}_sandwiches_${a}`,
     3, 3,
-    `3 locations in the world have two ${SEED_NAMES[b]} planted with ${SEED_NAMES[a]} between them`,
+    `3 locations in the world have two ${SEED_NAMES[b]} planted with ${SEED_NAMES[a]} between them, all grown or older`,
     [a, b],
     sandwichCheck(a, b),
   ));
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_sandwiches_${b}`,
     3, 3,
-    `3 locations in the world have two ${SEED_NAMES[a]} planted with ${SEED_NAMES[b]} between them`,
+    `3 locations in the world have two ${SEED_NAMES[a]} planted with ${SEED_NAMES[b]} between them, all grown or older`,
     [a, b],
     sandwichCheck(b, a),
   ));
@@ -164,7 +164,7 @@ for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_triple`,
     3, 6,
-    `6 locations in the world have ${SEED_NAMES[seedId]} planted at least 3 times`,
+    `6 locations in the world have ${SEED_NAMES[seedId]} planted at least 3 times as a grown plant or older`,
     [seedId],
     (p, tick) => p.filter(x => x.seedId === seedId && plantAge(x, tick) >= GROWN_TICKS).length >= 3,
   ));

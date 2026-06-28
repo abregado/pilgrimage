@@ -71,13 +71,14 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'undecorate') result = actions.undecorate(deviceId, msg.potId, state);
     else if (msg.type === 'pot')    result = actions.pot(deviceId, msg.potId, msg.seedId || null, state);
     else if (msg.type === 'swap')   result = actions.swap(deviceId, msg.seedId, state);
-    else if (msg.type === 'walk')   result = actions.walk(deviceId, msg.pathId, state);
+    else if (msg.type === 'walk')   result = actions.walk(deviceId, msg.pathId, state, msg.fast ?? false);
     else if (msg.type === 'reverse') result = actions.reverse(deviceId, state);
     else if (msg.type === 'take_seed') result = actions.takeSeed(deviceId, msg.fromId, state);
     else if (msg.type === 'continue')   result = actions.continuee(deviceId, state);
     else if (msg.type === 'delete_rule') result = actions.deleteRule(deviceId, msg.ruleId, state);
     else if (msg.type === 'pick_seed') result = actions.pickSeed(deviceId, msg.seedId, state);
     else if (msg.type === 'queue_travel') result = actions.queueTravel(deviceId, msg.pathIds, state);
+    else if (msg.type === 'activate_fast_travel') result = actions.activateFastTravel(deviceId, state);
     else if (msg.type === 'delete_pilgrim') result = actions.deleteGardener(deviceId, state);
     else if (msg.type === 'poll')   result = { ok: true };
 

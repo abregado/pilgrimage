@@ -57,6 +57,8 @@ When generating rules (initial or refresh), no seedId may appear in more than on
 
 `check`: at least one pot has `a` at SEEDLING+ AND at least one has `b` at SEEDLING+.
 
+Description says "as seedlings or older".
+
 15 templates (one per adjacent pair).
 
 ---
@@ -66,6 +68,8 @@ When generating rules (initial or refresh), no seedId may appear in more than on
 `{a}_{b}_adjacent`
 
 `check`: two consecutive pots (wrapping) hold `a` and `b` in either order, both at SEEDLING+.
+
+Description says "as seedlings or older".
 
 15 templates.
 
@@ -77,6 +81,8 @@ When generating rules (initial or refresh), no seedId may appear in more than on
 
 `check`: a pot with `seedId` at SEEDLING+ has at least one empty neighbour (prev or next, wrapping).
 
+Description says "as a seedling or older".
+
 15 templates.
 
 ---
@@ -85,6 +91,8 @@ When generating rules (initial or refresh), no seedId may appear in more than on
 
 `{b}_sandwiches_{a}` — check: both neighbours of some `a` pot (GROWN+) are `b` (GROWN+).  
 `{a}_sandwiches_{b}` — check: both neighbours of some `b` pot (GROWN+) are `a` (GROWN+).
+
+Descriptions say "all grown or older".
 
 30 templates (2 per pair).
 
@@ -95,6 +103,8 @@ When generating rules (initial or refresh), no seedId may appear in more than on
 `{seedId}_triple`
 
 `check`: seed appears GROWN+ in 3 or more pots.
+
+Description says "as a grown plant or older".
 
 15 templates.
 

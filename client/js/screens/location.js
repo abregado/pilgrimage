@@ -33,10 +33,12 @@ function seedIconSmall(seedId) {
 }
 
 // Keep in sync with server/constants.js
-const SEEDLING_TICKS = 1800;
-const GROWN_TICKS    = 21600;
-const FRUITING_TICKS = 604800;
-const DEAD_TICKS     = 2592000;
+const SEEDLING_TICKS    = 1800;
+const GROWN_TICKS       = 21600;
+const FRUITING_TICKS    = 604800;
+const DEAD_TICKS        = 2592000;
+const FAST_TRAVEL_COST  = 2;
+const FAST_TRAVEL_MULTI = 5;
 
 const ENERGY_COST_BASE     = 1;
 const ENERGY_COST_SEEDLING = 3;
@@ -337,6 +339,7 @@ export function renderLocation(app) {
     const autoArrive = getAutoArrive();
     const energy    = gardener.energy ?? 0;
     const energyMax = gardener.energyMax ?? 0;
+    const fastTravel = gardener.fastTravel ?? false;
 
     let html = `<div class="main-screen"><div class="screen-content">`;
 
@@ -347,6 +350,12 @@ export function renderLocation(app) {
 
     html += `<div class="reverse-row">
       <button class="btn btn-sm" data-action="reverse">↩ Reverse</button>
+      ${fastTravel
+        ? `<span class="fast-travel-active">⚡ Fast Travel</span>`
+        : energy >= FAST_TRAVEL_COST
+          ? `<button class="btn btn-sm btn-accent" data-action="activate_fast_travel">⚡ Fast Travel (${FAST_TRAVEL_COST} energy)</button>`
+          : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast Travel (${FAST_TRAVEL_COST} energy)</button>`
+      }
     </div>`;
 
     html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus);
@@ -406,8 +415,8 @@ export function renderLocation(app) {
     html += `<span class="population-count">${population}</span>`;
     html += `</div>`;
     html += `<h2 class="location-top-name">${locName}</h2>`;
-    html += renderEnergyBar(energy, energyMax, gardener.energyRegenAt ?? null, tick);
     html += `</div>`;
+    html += renderEnergyBar(energy, energyMax, gardener.energyRegenAt ?? null, tick);
   } else {
     const locName = '...';
     html += `<div class="location-top-bar">`;
@@ -421,6 +430,12 @@ export function renderLocation(app) {
     const destId = embarkPath ? (embarkPath.fromId === gardener.locationId ? embarkPath.toId : embarkPath.fromId) : null;
     const destName = destId ? ((LOCATION_MAP[destId] || {}).name || destId) : '?';
     const chosenSeed = getEmbarkChosenSeed();
+
+    const baseSpeed = movementSpeed * (gardener.speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
+    const pathLen = embarkPath ? embarkPath.length : 0;
+    const normalTicks = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
+    const fastTicks   = pathLen > 0 ? Math.ceil(pathLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
+    const canFast = (gardener.energy ?? 0) >= FAST_TRAVEL_COST;
 
     html += `<div class="section">`;
     html += `<p class="seed-carry-prompt">Which seed will you carry to <strong>${destName}</strong>?</p>`;
@@ -439,7 +454,11 @@ export function renderLocation(app) {
     html += `</div>`;
     html += `<div class="embark-actions">
       <button class="btn btn-sm btn-muted" data-action="cancel_embark">Cancel</button>
-      <button class="btn btn-sm btn-accent" data-action="embark">Embark →</button>
+      <button class="btn btn-sm btn-accent" data-action="embark">Embark → <span class="embark-time">~${formatDuration(normalTicks)}</span></button>
+      ${canFast
+        ? `<button class="btn btn-sm btn-accent" data-action="embark_fast">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+        : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+      }
     </div>`;
     html += `</div>`;
 

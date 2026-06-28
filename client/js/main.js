@@ -91,6 +91,21 @@ document.getElementById('app').addEventListener('click', (e) => {
       sendAction({ type: 'walk', pathId });
       break;
     }
+    case 'embark_fast': {
+      const pathId = getEmbarkingPathId();
+      const chosenSeed = getEmbarkChosenSeed();
+      const currentSeed = getState()?.gardener?.seed ?? null;
+      clearEmbarking();
+      if (chosenSeed !== currentSeed) {
+        setPendingPickSeed(chosenSeed);
+      }
+      sendAction({ type: 'walk', pathId, fast: true });
+      break;
+    }
+    case 'activate_fast_travel': {
+      sendAction({ type: 'activate_fast_travel' });
+      break;
+    }
     case 'cancel_embark': {
       clearEmbarking();
       render();

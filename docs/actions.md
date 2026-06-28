@@ -44,7 +44,7 @@ The same cost table applies to **both planting and clearing**.
 
 ---
 
-## `walk(deviceId, pathId, state)`
+## `walk(deviceId, pathId, state, fast = false)`
 
 Guard: `resting`, at a location, path connects to current location.
 
@@ -52,6 +52,8 @@ Before leaving:
 1. Builds nursery seedPool (origin seed + carried + grown pots + other resting gardeners' seeds here).
 2. Stores as `gardener.availableSeeds`.
 3. Snapshots `locData.pots.map(p => ({id, seedId}))` into `gardener.locationMemory[locId]`.
+
+If `fast = true`: requires `energy >= FAST_TRAVEL_COST (2)`, deducts it, sets `gardener.fastTravel = true`. Otherwise sets `fastTravel = false`.
 
 Then: clears `locationId`, sets `pathId`, `pathFrom`, `progress = 0`, `state = 'walking'`, clears `encounteredThisTrip`.
 
@@ -112,6 +114,16 @@ Guard: `resting`. Pot must have a seed. Adds gardener id to `pot.decorators` and
 ## `undecorate(deviceId, potId, state)`
 
 Guard: `resting`. Removes gardener id from `pot.decorators` and potId from `decoratedPots`.
+
+---
+
+## `activateFastTravel(deviceId, state)`
+
+Guard: `walking`, fast travel not already active, `energy >= FAST_TRAVEL_COST (2)`.
+
+Deducts `FAST_TRAVEL_COST` energy and sets `gardener.fastTravel = true`. The game loop then applies `FAST_TRAVEL_MULTI (5×)` to movement speed.
+
+**Fast travel persistence**: `fastTravel` is never cleared by the game loop or by arrival. It persists through auto-continued queued legs and through the `arriving` / `resting` states. It is cleared when `walk` is called again (to whatever the new journey specifies) or when any location action (`pot`, `decorate`, `undecorate`, `swap`) is performed.
 
 ---
 

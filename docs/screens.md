@@ -25,7 +25,7 @@ When `gardener.state === 'walking'` the Location tab shows the travel view:
 
 1. **Header** — "Travelling to {destination}" + energy pips with regen countdown.
 2. **SVG travel path** — curvy dotted brown line with X endpoints; a meeple animates smoothly along the curve. The SVG has `id="travel-path-svg"` and the meeple group has `id="travel-meeple"`. The `startTravelAnim(path, speed, speedBonus, rulesSpeedBonus)` exported function drives a `requestAnimationFrame` loop that updates the meeple transform and the `id="travel-eta"` ETA div without re-rendering the screen.
-3. **Reverse Direction** button.
+3. **Reverse Direction** button + **Fast Travel** button (or "⚡ Fast Travel" active indicator if already activated). Fast Travel costs `FAST_TRAVEL_COST (2)` energy and multiplies speed by `FAST_TRAVEL_MULTI (5×)`. Button is disabled if energy is insufficient.
 4. **Encounters list** with "Take Seed" buttons.
 
 Note: the seed picker is **not shown** during travel. Seed selection happens on the embarkation screen before walking.
@@ -34,7 +34,7 @@ Note: the seed picker is **not shown** during travel. Seed selection happens on 
 
 Sections rendered in order:
 
-1. **Top bar** — meeple icons + location name + energy pips with regen countdown (`+1 in Xm`).
+1. **Top bar** — meeple icons + location name. **Energy bar** rendered separately beneath the top bar (not inline with the title).
 2. **Pots wheel** — circular layout (84×84px squares). Selecting a pot reveals the centre panel with plant info and action buttons. Each occupied pot shows the plant image with a 32px seed SVG icon overlaid. Action buttons show energy cost: `Plant Mirewort (3 energy)`, `Clear (8 energy)`. Buttons are disabled if energy is insufficient.
 3. **Nursery** — seed grid; clicking selects a seed for planting.
 4. **Vision** — active rules as cards. Completed rules show a safe-period badge: `Safe Xh Ym`.
@@ -42,7 +42,11 @@ Sections rendered in order:
 
 ### Embarkation picker
 
-When `embarkingPathId` is set (after clicking Walk from the Travel section), a seed picker replaces the normal content. The player picks which seed to carry using `select_embark_seed`. Confirms with `embark`.
+When `embarkingPathId` is set (after clicking Walk from the Travel section), a seed picker replaces the normal content. The player picks which seed to carry using `select_embark_seed`.
+
+Two confirm buttons are shown:
+- **Embark →** (`embark` action) — normal travel, shows `~{normalTime}`.
+- **⚡ Fast →** (`embark_fast` action) — fast travel at `FAST_TRAVEL_MULTI (5×)` speed, costs `FAST_TRAVEL_COST (2)` energy, shows `~{fastTime}`. Disabled if energy is insufficient.
 
 ### Tab: Map / Record
 

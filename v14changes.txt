@@ -1,0 +1,35 @@
+Pilgrims have 10 energy max at the start
+The upgrades for time add 3 max energy
+The upgrades for exploration add 5 max energy
+Upgrades for completed vision rules give 5 max energy
+
+Instead of taking longer to pot plants at later stages, it costs more energy.
+
+Potting an empty, dead or seed pot costs 1
+Potting a pot with a seedling costs 3
+Potting a pot with a grown tree costs 8
+Potting a pot with a fruiting tree costs 12
+
+Energy recharges one every 20 minutes.
+Add a count down near the energy readout to say how long until the next energy comes in.
+
+Pilgrims no longer have a state where they are planting and cannot travel or pot a plant.
+
+In the Plant or Clear button of the Pot Display, show the energy cost instead of the time.
+
+On the travel and arrival screen, you can no longer change which seed you are carrying with you.
+
+Add the energy readout to the heading row of the Travelling screen.
+
+Once you have acheived a vision rule, then it gets a safe time until RULE_SAFE_TIME + current time. This means it will show as completed and wont be checked for completion again until the safe time is over. Show the safe time on the Vision display of the location screen AND in the pilgrim record.
+
+At the moment you have acheived the the last unfinished rule in your vision, then update all rules and set their safe time to RULE_SAFE_TIME * 3.
+
+Having your whole vision acheived gives you a +100% movement speed bonus on top.
+
+When generating rules, the same plant cannot be in your vision more than once.
+
+Level 2 rules require the plants to be at least SEEDLING
+Level 3 rules require the plants to be at least GROWN
+
+update the docs and instructions when you are done to reflect the changes.

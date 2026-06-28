@@ -23,5 +23,8 @@ export const INITIAL_RULE_SLOTS  = 4;
 export const RULE_REFRESH_TICKS  = 60;    // 1 minute cooldown on rule refresh
 export const RULE_SAFE_TIME      = 86400; // 24 hours
 
-export const SPEED_BONUS_PER_RULE    = 0.10; // +10% per completed rule
+export const SPEED_BONUS_PER_RULE    = 0.25; // +25% per completed rule
 export const SPEED_BONUS_FULL_VISION = 1.0;  // +100% when all 4 rules complete
+
+export const FAST_TRAVEL_COST  = 2; // energy cost to activate fast travel
+export const FAST_TRAVEL_MULTI = 20; // speed multiplier while fast travel is active
