@@ -425,6 +425,19 @@ export function pickSeed(deviceId, seedId, state) {
   return ok();
 }
 
+export function deleteGardener(deviceId, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  for (const locData of Object.values(state.locations)) {
+    for (const pot of locData.pots) {
+      const idx = pot.decorators.indexOf(gardener.id);
+      if (idx !== -1) pot.decorators.splice(idx, 1);
+    }
+  }
+  delete state.gardeners[deviceId];
+  return ok();
+}
+
 export function queueTravel(deviceId, pathIds, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');

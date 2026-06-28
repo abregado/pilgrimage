@@ -1,5 +1,13 @@
 import { connect, sendAction } from './network.js';
-import { getState, getTab, setTab, getSelectedNurserySeedId, setSelectedNurserySeedId, getSelectedPotId, setSelectedPotId, setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId, getConnected } from './state.js';
+import { getState, getTab, setTab,
+         getSelectedNurserySeedId, setSelectedNurserySeedId,
+         getSelectedPotId, setSelectedPotId,
+         setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId,
+         getConnected,
+         getEmbarkingPathId, getEmbarkChosenSeed,
+         startEmbarking, setEmbarkChosenSeed, clearEmbarking,
+         setPendingPickSeed,
+         clearJourneyLog, setAutoArrive } from './state.js';
 import { render } from './render.js';
 import { SEED_MAP } from './seeds.js';
 import { ensurePlaying, toggleMusic } from './audio.js';
@@ -61,7 +69,31 @@ document.getElementById('app').addEventListener('click', (e) => {
       break;
     }
     case 'walk': {
-      sendAction({ type: 'walk', pathId: btn.dataset.pathId });
+      // Enter embark mode instead of walking immediately
+      const st = getState();
+      startEmbarking(btn.dataset.pathId, st?.gardener?.seed ?? null);
+      render();
+      break;
+    }
+    case 'select_embark_seed': {
+      setEmbarkChosenSeed(btn.dataset.seedId || null);
+      render();
+      break;
+    }
+    case 'embark': {
+      const pathId = getEmbarkingPathId();
+      const chosenSeed = getEmbarkChosenSeed();
+      const currentSeed = getState()?.gardener?.seed ?? null;
+      clearEmbarking();
+      if (chosenSeed !== currentSeed) {
+        setPendingPickSeed(chosenSeed);
+      }
+      sendAction({ type: 'walk', pathId });
+      break;
+    }
+    case 'cancel_embark': {
+      clearEmbarking();
+      render();
       break;
     }
     case 'reverse': {
@@ -73,6 +105,7 @@ document.getElementById('app').addEventListener('click', (e) => {
       break;
     }
     case 'continue': {
+      clearJourneyLog();
       sendAction({ type: 'continue' });
       break;
     }
@@ -91,6 +124,17 @@ document.getElementById('app').addEventListener('click', (e) => {
     case 'toggle_music': {
       toggleMusic();
       render();
+      break;
+    }
+    case 'toggle_auto_arrive': {
+      setAutoArrive(!btn.classList.contains('active'));
+      render();
+      break;
+    }
+    case 'delete_pilgrim': {
+      if (window.confirm('Delete your Pilgrim permanently? This cannot be undone. Your decorations will also be removed.')) {
+        sendAction({ type: 'delete_pilgrim' });
+      }
       break;
     }
   }

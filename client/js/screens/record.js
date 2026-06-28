@@ -146,5 +146,10 @@ export function renderRecord(container, state) {
       <button class="btn btn-full btn-muted" data-action="toggle_music">${isMusicEnabled() ? 'Music: On' : 'Music: Off'}</button>
     </div>`;
 
+  html += `
+    <div class="section">
+      <button class="btn btn-full btn-danger" data-action="delete_pilgrim">Delete my Pilgrim</button>
+    </div>`;
+
   container.innerHTML = html;
 }

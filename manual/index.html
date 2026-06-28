@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verdant — Manual</title>
+<style>
+  :root {
+    --bg: #0a0f0a;
+    --surface: #111a11;
+    --border: #1e2e1e;
+    --text: #e8e4d4;
+    --muted: #8a9080;
+    --accent: #c9a84c;
+    --sage: #6b8f71;
+    --danger: #b04040;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+  header { margin-bottom: 48px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+  .site-title {
+    font-size: 42px;
+    font-weight: 300;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    margin-bottom: 8px;
+  }
+  .site-sub { color: var(--muted); font-size: 15px; }
+  .play-link {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 10px 20px;
+    background: var(--accent);
+    color: #0a0f0a;
+    font-weight: 700;
+    font-size: 14px;
+    border-radius: 8px;
+    text-decoration: none;
+  }
+  .play-link:hover { background: #d9b85c; }
+
+  nav { margin-bottom: 48px; }
+  nav ul { list-style: none; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+  nav a { color: var(--sage); font-size: 14px; text-decoration: none; }
+  nav a:hover { color: var(--text); }
+
+  h2 {
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--accent);
+    margin: 48px 0 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin: 28px 0 10px;
+  }
+  p { margin-bottom: 14px; color: var(--muted); }
+  p strong { color: var(--text); }
+  ul, ol { padding-left: 22px; margin-bottom: 14px; color: var(--muted); }
+  li { margin-bottom: 6px; }
+  li strong { color: var(--text); }
+
+  .warning {
+    background: rgba(176,64,64,0.12);
+    border: 1px solid var(--danger);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 20px 0;
+  }
+  .warning-title {
+    color: var(--danger);
+    font-weight: 700;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 10px;
+  }
+  .warning p { color: #d97070; margin-bottom: 8px; }
+  .warning ul { color: #d97070; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin: 12px 0;
+  }
+  .card-title { font-weight: 600; color: var(--text); margin-bottom: 6px; }
+
+  code {
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    color: var(--accent);
+  }
+  pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-size: 13px;
+    color: var(--accent);
+  }
+  pre code { background: none; border: none; padding: 0; }
+
+  .seed-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+  .seed-table th { text-align: left; color: var(--muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  .seed-table td { padding: 8px; border-bottom: 1px solid var(--border); color: var(--muted); }
+  .seed-table td:first-child { color: var(--text); }
+
+  footer { margin-top: 64px; border-top: 1px solid var(--border); padding-top: 24px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div class="site-title">Verdant</div>
+  <p class="site-sub">A slow multiplayer wandering game</p>
+  <a class="play-link" href="https://pilgrim.fly.dev/">Play Verdant →</a>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="#what-is-verdant">What is Verdant</a></li>
+    <li><a href="#getting-started">Getting Started</a></li>
+    <li><a href="#travelling">Travelling</a></li>
+    <li><a href="#seeds-and-pots">Seeds &amp; Pots</a></li>
+    <li><a href="#vision">Vision</a></li>
+    <li><a href="#energy">Energy</a></li>
+    <li><a href="#encounters">Encounters</a></li>
+    <li><a href="#the-record">The Record</a></li>
+    <li><a href="#running-a-server">Running a Server</a></li>
+  </ul>
+</nav>
+
+<!-- ── What is Verdant ── -->
+<section id="what-is-verdant">
+<h2>What is Verdant</h2>
+<p>Verdant is a slow, multiplayer, browser-based game. You control a <strong>Pilgrim</strong> who wanders a world of fifteen named locations connected by walking paths.</p>
+<p>Your pilgrim exists on a shared server between sessions. While you are away, time still passes — plants grow, fellow pilgrims wander.</p>
+<p>There is no winning condition. The goal is to fulfil your personal <strong>Vision</strong>, explore the world, leave your mark in gardens, and encounter other pilgrims along the way.</p>
+</section>
+
+<!-- ── Getting Started ── -->
+<section id="getting-started">
+<h2>Getting Started</h2>
+<p>Open the game in a browser and press <strong>Become a Pilgrim</strong>. Your pilgrim is created at a random location, carrying the origin seed of that location.</p>
+<p>You are assigned a <strong>Vision</strong> — four rules about the state of the world's gardens. These guide what you plant and where you travel.</p>
+<p>Your pilgrim is tied to the device you use. Do not clear your browser's local storage or you will lose access to your pilgrim.</p>
+</section>
+
+<!-- ── Travelling ── -->
+<section id="travelling">
+<h2>Travelling</h2>
+<p>From the <strong>Location</strong> tab, the Travel section shows paths you can walk. Each path shows how long it will take. Tap <strong>Walk</strong> to begin.</p>
+<p>Before walking, you will be asked which seed to carry on the journey. Choose from the seeds available at your current location.</p>
+
+<h3>On the path</h3>
+<p>While walking, a path diagram shows your progress. The <strong>↩ Reverse</strong> button sends you back the way you came. Enable <strong>Auto-arrive</strong> to skip the arrival screen and land directly at your destination.</p>
+<p>You can also change which seed you are carrying while in transit.</p>
+
+<h3>The map</h3>
+<p>Switch to the <strong>Map</strong> tab to see the world. Locations you have visited are shown with their origin seed icon. Tap a visited location, then press <strong>Travel to X</strong> to queue a multi-hop route — your pilgrim will walk each leg in sequence.</p>
+
+<h3>Arrival</h3>
+<p>When you arrive, you see the <strong>Arrival</strong> screen. This lists pilgrims you encountered on the journey and lets you choose your carried seed. Press <strong>Continue</strong> to enter the location.</p>
+</section>
+
+<!-- ── Seeds & Pots ── -->
+<section id="seeds-and-pots">
+<h2>Seeds &amp; Pots</h2>
+<p>Each location has a fixed number of <strong>pots</strong>. Pots can be planted with seeds and grow through five stages:</p>
+
+<table class="seed-table">
+  <thead><tr><th>Stage</th><th>Appears after</th></tr></thead>
+  <tbody>
+    <tr><td>Seed</td><td>Just planted</td></tr>
+    <tr><td>Seedling</td><td>30 minutes</td></tr>
+    <tr><td>Grown</td><td>6 hours</td></tr>
+    <tr><td>Fruiting</td><td>7 days</td></tr>
+    <tr><td>Dead</td><td>30 days</td></tr>
+  </tbody>
+</table>
+
+<h3>Planting</h3>
+<p>In the <strong>Nursery</strong> widget, select a seed, then tap a pot to plant it. Planting costs 1 energy and puts you into a <em>tending</em> state for a short time (longer for older plants you are replacing).</p>
+<p>The nursery shows the origin seed of the location, your carried seed, seeds from grown or fruiting pots here, and seeds carried by other resting pilgrims.</p>
+
+<h3>Clearing</h3>
+<p>With <strong>None</strong> selected in the nursery, tap a pot to clear it. The pot settles for a period before it can be replanted.</p>
+
+<h3>Decorating</h3>
+<p>You can <strong>Decorate</strong> a pot you did not plant. Decorations mark your appreciation and count toward the pot's score in your Record.</p>
+
+<h3>Carrying a seed</h3>
+<p>You carry one seed at a time. Your carried seed contributes to the nursery pool at locations you visit, allowing other pilgrims to plant it.</p>
+</section>
+
+<!-- ── Vision ── -->
+<section id="vision">
+<h2>Vision</h2>
+<p>Your Vision is four rules assigned when you become a pilgrim. Each rule describes a condition that must be true at a number of locations you have visited.</p>
+<p>Example rules:</p>
+<ul>
+  <li>"3 locations where at least one pot is fruiting"</li>
+  <li>"4 locations with pots of two different seed types"</li>
+  <li>"6 locations where a pot has been decorated"</li>
+</ul>
+<p>You can see your Vision progress on the <strong>Location</strong> tab (Vision section) and on the <strong>Record</strong> tab. The Location tab shows whether your current location satisfies each rule.</p>
+
+<h3>Completing a rule</h3>
+<p>When a rule is satisfied at enough locations, it is marked <strong>Complete</strong>. Completing a rule gives you a permanent <strong>+10% movement speed</strong> bonus and increases your maximum energy by 1.</p>
+
+<h3>Dismissing a rule</h3>
+<p>On the Record tab you can <strong>Dismiss</strong> an incomplete rule. The slot is replaced with a new rule after a delay. Use this if a rule no longer fits your playstyle.</p>
+</section>
+
+<!-- ── Energy ── -->
+<section id="energy">
+<h2>Energy</h2>
+<p>You start with 3 energy. Energy is spent planting seeds. Milestones that increase your maximum energy:</p>
+<ul>
+  <li>+1 after your pilgrim is 1 day old</li>
+  <li>+1 after your pilgrim is 1 week old</li>
+  <li>+1 if you have visited all 15 locations</li>
+  <li>+1 per completed Vision rule</li>
+</ul>
+<p>Energy does not regenerate mid-play — it is restored fully when you return from a walk (between sessions the server does not regenerate it automatically; the current version ties energy to these milestones).</p>
+</section>
+
+<!-- ── Encounters ── -->
+<section id="encounters">
+<h2>Encounters</h2>
+<p>As you walk a path you may encounter other pilgrims travelling the same path in the opposite direction. Encounters are shown as a list while walking and again on the Arrival screen.</p>
+<p>You can <strong>copy</strong> a seed from an encountered pilgrim. This does not remove their seed — it is a copy. You can only carry one seed at a time, so copying replaces whatever you were carrying.</p>
+</section>
+
+<!-- ── The Record ── -->
+<section id="the-record">
+<h2>The Record</h2>
+<p>Switch to the <strong>Record</strong> tab to see your pilgrim's history:</p>
+<ul>
+  <li><strong>Age</strong> — how long your pilgrim has existed</li>
+  <li><strong>Energy</strong> — current and maximum, with milestone progress</li>
+  <li><strong>Vision</strong> — all four rules and their progress</li>
+  <li><strong>Movement speed</strong> — your current speed bonus from completed rules</li>
+  <li><strong>Seed Log</strong> — which seeds you have carried, seen as seedlings, grown, fruiting, and dead</li>
+</ul>
+
+<h3>Deleting your pilgrim</h3>
+<p>At the bottom of the Record tab is a <strong>Delete my Pilgrim</strong> button. This permanently removes your pilgrim and all their decorations from the server. This cannot be undone.</p>
+</section>
+
+<!-- ── Running a Server ── -->
+<section id="running-a-server">
+<h2>Running a Server</h2>
+
+<div class="warning">
+  <div class="warning-title">⚠ Security warning — please read before hosting</div>
+  <p>The Verdant server is designed as a simple personal/community toy. It has:</p>
+  <ul>
+    <li><strong>No authentication</strong> — anyone who knows your URL can join and play</li>
+    <li><strong>No rate limiting</strong> — a client can send actions as fast as it wants</li>
+    <li><strong>No input sanitisation beyond basic checks</strong> — untrusted inputs reach the game logic directly</li>
+    <li><strong>World state stored in a single JSON file</strong> — no backups, no transactions</li>
+    <li><strong>No HTTPS by default</strong> — traffic is unencrypted unless you add a reverse proxy</li>
+  </ul>
+  <p>Do not expose this server to the public internet without understanding these risks. It is suitable for a small group of trusted friends on a private network or behind a VPN, or as a learning exercise.</p>
+</div>
+
+<h3>Requirements</h3>
+<ul>
+  <li>Node.js 18 or later</li>
+  <li>npm</li>
+</ul>
+
+<h3>Setup</h3>
+<pre><code># Clone or download the repository
+git clone https://github.com/your-username/pilgrim.git
+cd pilgrim
+
+# Install dependencies
+npm install
+
+# Start the server
+npm start</code></pre>
+<p>The server runs on port <code>3000</code> by default. Visit <code>http://localhost:3000</code> in a browser to play.</p>
+
+<h3>Configuration</h3>
+<p>Set the <code>PORT</code> environment variable to change the port:</p>
+<pre><code>PORT=8080 npm start</code></pre>
+
+<h3>Persistent state</h3>
+<p>World state is saved to <code>server/data/state.json</code> on every action. The file is created automatically. Back it up regularly if you care about your world.</p>
+<p>If the server detects a state file from an unsupported version it will migrate the data or start fresh.</p>
+
+<h3>Deploying to Fly.io</h3>
+<p>The repository includes a <code>fly.toml</code> configuration. If you have the <a href="https://fly.io/docs/hands-on/install-flyctl/" style="color:var(--sage)">flyctl</a> CLI installed and an account:</p>
+<pre><code>fly launch   # first time
+fly deploy   # subsequent deploys</code></pre>
+
+<h3>HTTPS / reverse proxy</h3>
+<p>To add HTTPS, place Nginx or Caddy in front of the Node.js process and proxy WebSocket connections. WebSockets require the <code>Upgrade</code> header to be forwarded.</p>
+<p>Example Caddy configuration:</p>
+<pre><code>example.com {
+  reverse_proxy localhost:3000
+}</code></pre>
+</section>
+
+<footer>
+  Verdant · <a href="https://pilgrim.fly.dev/" style="color:var(--sage)">Play</a>
+</footer>
+
+</div>
+</body>
+</html>

@@ -39,7 +39,6 @@ function computeRoute(startId, targetId, visited, adjacent) {
     unvisited.delete(u);
 
     for (const p of PATHS) {
-      // Only traverse visible paths (at least one endpoint is visited)
       if (!visited.has(p.fromId) && !visited.has(p.toId)) continue;
       let neighbor = null;
       if (p.fromId === u && known.has(p.toId)) neighbor = p.toId;
@@ -67,6 +66,71 @@ function computeRoute(startId, targetId, visited, adjacent) {
   return pathIds;
 }
 
+// ── Map marker tween animation ────────────────────────────────────────────────
+let _mapAnimId = null;
+
+export function stopMapTravelAnim() {
+  if (_mapAnimId !== null) {
+    cancelAnimationFrame(_mapAnimId);
+    _mapAnimId = null;
+  }
+}
+
+function startMapTravelAnim(pathView, gardener, state) {
+  stopMapTravelAnim();
+
+  const from = LOCATION_MAP[pathView.pathFrom];
+  const destId = pathView.pathFrom === pathView.fromId ? pathView.toId : pathView.fromId;
+  const to = LOCATION_MAP[destId];
+  if (!from || !to) return;
+
+  const effectiveSpeed = state.movementSpeed * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0));
+  const startProgress = pathView.progress;
+  const startTime = performance.now();
+
+  // Build full route including queued legs
+  const legs = [{ from, to, length: pathView.length }];
+  let prevDestId = destId;
+  for (const pid of (gardener.travelQueue || [])) {
+    const p = PATH_MAP[pid];
+    if (!p) break;
+    const nextDestId = p.fromId === prevDestId ? p.toId : p.fromId;
+    const legFrom = LOCATION_MAP[prevDestId];
+    const legTo   = LOCATION_MAP[nextDestId];
+    if (legFrom && legTo) legs.push({ from: legFrom, to: legTo, length: p.length });
+    prevDestId = nextDestId;
+  }
+
+  function loop() {
+    const elapsed = (performance.now() - startTime) / 1000;
+    let remaining = startProgress + effectiveSpeed * elapsed;
+
+    let x = to.x, y = to.y;
+    for (const leg of legs) {
+      if (remaining <= leg.length) {
+        const t = remaining / leg.length;
+        x = leg.from.x + (leg.to.x - leg.from.x) * t;
+        y = leg.from.y + (leg.to.y - leg.from.y) * t;
+        break;
+      }
+      remaining -= leg.length;
+      x = leg.to.x;
+      y = leg.to.y;
+    }
+
+    const marker = document.getElementById('map-you-marker');
+    const label  = document.getElementById('map-you-label');
+    if (marker) { marker.setAttribute('cx', x.toFixed(1)); marker.setAttribute('cy', y.toFixed(1)); }
+    if (label)  { label.setAttribute('x', x.toFixed(1));  label.setAttribute('y', (y - 20).toFixed(1)); }
+
+    _mapAnimId = requestAnimationFrame(loop);
+  }
+
+  _mapAnimId = requestAnimationFrame(loop);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function renderMap(container, state) {
   if (!state) {
     container.innerHTML = `<p class="muted center">Not connected</p>`;
@@ -88,12 +152,10 @@ export function renderMap(container, state) {
   }
   for (const id of visited) adjacent.delete(id);
 
-  // Locations selectable for queued travel (only when resting)
   const canSelect = gardener.state === 'resting' && currentLocId;
 
   const visiblePaths = PATHS.filter(p => visited.has(p.fromId) || visited.has(p.toId));
 
-  // Pre-compute route for both path highlighting and the travel button
   let routePathIds = new Set();
   let travelRoute = null;
   if (canSelect && selectedLocId && selectedLocId !== currentLocId) {
@@ -135,7 +197,6 @@ export function renderMap(container, state) {
           x="${loc.x - 16}" y="${loc.y - 16}" width="32" height="32"
           class="${cls}" ${attrs}/>`;
       } else {
-        // Fallback for locations without a home seed
         let cls = 'map-loc visited';
         if (isSelectable) cls += ' walkable';
         if (isSelected)   cls += ' selected';
@@ -147,37 +208,41 @@ export function renderMap(container, state) {
       if (isSelected)   cls += ' selected';
       svg += `<circle cx="${loc.x}" cy="${loc.y}" r="${LOC_R}" class="${cls}" ${attrs}/>`;
     }
-
-    if (isCurrent) {
-      svg += `<text x="${loc.x}" y="${loc.y + 22}" class="map-label">${loc.name}</text>`;
-    }
+    // Location name text removed; hover tooltip still works
   }
 
   // Player position marker
   let youX = null, youY = null;
+  let atLocation = false;
   if (currentLocId && LOCATION_MAP[currentLocId]) {
     const loc = LOCATION_MAP[currentLocId];
     youX = loc.x;
     youY = loc.y;
+    atLocation = true;
   } else if (pathView && pathView.pathFrom && pathView.length) {
-    const from = LOCATION_MAP[pathView.pathFrom];
+    const fromLoc = LOCATION_MAP[pathView.pathFrom];
     const destId = pathView.pathFrom === pathView.fromId ? pathView.toId : pathView.fromId;
-    const to = LOCATION_MAP[destId];
-    if (from && to) {
+    const toLoc = LOCATION_MAP[destId];
+    if (fromLoc && toLoc) {
       const frac = Math.min(1, pathView.progress / pathView.length);
-      youX = from.x + (to.x - from.x) * frac;
-      youY = from.y + (to.y - from.y) * frac;
+      youX = fromLoc.x + (toLoc.x - fromLoc.x) * frac;
+      youY = fromLoc.y + (toLoc.y - fromLoc.y) * frac;
     }
   }
 
   if (youX !== null && youY !== null) {
-    svg += `<circle cx="${youX.toFixed(1)}" cy="${youY.toFixed(1)}" r="7" class="map-you"/>`;
-    svg += `<text x="${youX.toFixed(1)}" y="${(youY - 14).toFixed(1)}" class="map-label map-you-label">You</text>`;
+    if (atLocation) {
+      // Stroke-only circle, larger than the 32px seed icons (r≈16)
+      svg += `<circle id="map-you-marker" cx="${youX.toFixed(1)}" cy="${youY.toFixed(1)}" r="22" class="map-you-at-loc"/>`;
+    } else {
+      svg += `<circle id="map-you-marker" cx="${youX.toFixed(1)}" cy="${youY.toFixed(1)}" r="7" class="map-you"/>`;
+    }
+    svg += `<text id="map-you-label" x="${youX.toFixed(1)}" y="${(youY - (atLocation ? 28 : 16)).toFixed(1)}" class="map-label map-you-label">You</text>`;
   }
 
   svg += `</svg>`;
 
-  // Travel button (uses pre-computed travelRoute)
+  // Travel button
   let travelButton = '';
   if (travelRoute && travelRoute.length > 0) {
     const destName = LOCATION_MAP[selectedLocId]?.name ?? selectedLocId;
@@ -194,7 +259,7 @@ export function renderMap(container, state) {
     </div>`;
   }
 
-  // Bottom widget: show core seed + last-seen pots for selected visited location
+  // Bottom widget: selected visited location
   let locWidget = '';
   if (selectedLocId && visited.has(selectedLocId)) {
     const locMeta    = LOCATION_MAP[selectedLocId];
@@ -231,6 +296,12 @@ export function renderMap(container, state) {
 
   container.innerHTML = `<div class="map-wrap"><div class="map-tooltip" hidden></div>${svg}</div>${travelButton}${locWidget}`;
 
+  // Start marker tween if walking
+  stopMapTravelAnim();
+  if (gardener.state === 'walking' && pathView) {
+    startMapTravelAnim(pathView, gardener, state);
+  }
+
   // Hover tooltip
   const svgEl   = container.querySelector('.world-map');
   const tooltip = container.querySelector('.map-tooltip');
@@ -242,7 +313,6 @@ export function renderMap(container, state) {
     const locId = el.dataset.locId;
     const loc   = LOCATION_MAP[locId];
     if (!loc) return;
-    const label = loc.name;
 
     const svgRect  = svgEl.getBoundingClientRect();
     const wrapRect = wrap.getBoundingClientRect();
@@ -251,7 +321,7 @@ export function renderMap(container, state) {
     const px = loc.x * scaleX + (svgRect.left - wrapRect.left);
     const py = loc.y * scaleY + (svgRect.top  - wrapRect.top);
 
-    tooltip.textContent = label;
+    tooltip.textContent = loc.name;
     tooltip.removeAttribute('hidden');
     tooltip.style.left = `${px}px`;
     tooltip.style.top  = `${py - 36}px`;

@@ -1,0 +1,48 @@
+Remove distance count in Travelling screen and on the Travel widget in the Location screen.
+
+Add a check box in the Travelling screen to automatically arrive.
+
+Add an extra screen when embarking down a path to select which seed to carry.
+
+Remove the widget in the Location screen that shows other pilgrims and what they are carrying.
+
+The the Arrival screen, Clear the Your Journey list when you click Continue to the Location.
+
+Continue to Location button on the Arrival screen swaps you back to the Location screen.
+
+tween the map marker that shows where the pilgrim is along the path. If there are destinations queued, then tween based on the whole series of locations.
+
+When you start moving to a location from the map, swap to the Location screen (Travelling screen version).
+
+Remove the Here Now widget from the Location Screen.
+
+In the pot display, the button for planting or clearing, have the time it takes on a new line under the button text, but still inside the button.
+
+When loading the Location screen, the Nursery widget starts with your carried seed selected (currently its None).
+
+Always place the svg icon in front of the plant name when it is displayed.
+
+Replace the text on the Location, Map and Record nav bar links with svg image icons that I can edit myself. Create placeholders for these.
+
+On the travelling screen, the reverse direction button should be at the top center of the
+
+The population meeple bar, the Location Name and the energy UI should all be horizontally aligned along the top of the screen.
+
+In the Travel widget of the Location screen, use the svg icons instead of the unicode caharacters for the destination seed type.
+
+In the travel widget of the Location screen, dont show distance, just travel time.
+
+Add a button in the Pilgrim Record, at the bottom that deletes my Pilgrim.
+
+Add a panel to the welcome screen that explains What the game is, and that the player controls a pilgrim that moves through the world and plant seeds to fulfil their Vision. 
+
+There is a button on the nav bar that goes to the Instructions for the game, which shows the same information as the welcome screen explaination.
+
+Deploy to github pages a comprehensive instruction manual for how to play, and how to set up a server. Be sure to warn people that if they set up a server it is not safe and the reasons why. Add a link in the client welcome screen and instructions screen to the comprehensive rules.
+
+Remove the refresh button from completed Vision rules in the Vision display that is on the Location screen.
+
+Remove the text name that is displayed in the map for the location you are currently at. Keep the On hover titles.
+
+The "You" marker on the map, when in a location, should change to a non-filled circle a little bigger than the svg icons used to show the origin seed of the location, and the You text should be above it slightly.
+

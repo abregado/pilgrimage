@@ -1143,3 +1143,185 @@ h3 {
   font-weight: 400;
   letter-spacing: 0.02em;
 }
+
+/* ── Location top bar (meeples + name + energy in one row) ── */
+.location-top-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 12px;
+  min-height: 40px;
+}
+
+.location-top-meeples {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.location-top-name {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin-bottom: 0;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.location-top-energy {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* ── Tab bar icon images ─────────────────────────── */
+.tab-icon {
+  width: 22px;
+  height: 22px;
+  display: block;
+  margin: 0 auto;
+  filter: brightness(0) invert(1);
+  opacity: 0.4;
+}
+
+.tab-btn.active .tab-icon {
+  opacity: 1;
+  filter: brightness(0) invert(1) sepia(1) saturate(3) hue-rotate(-15deg);
+}
+
+/* ── Map: "You" marker when at a location ───────── */
+.map-you-at-loc {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+/* ── Travelling screen controls ─────────────────── */
+.reverse-row {
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.auto-arrive-row {
+  text-align: center;
+  margin: 8px 0 16px;
+}
+
+/* ── Embark seed picker actions ─────────────────── */
+.embark-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+
+/* ── Pot center action buttons: multi-line ───────── */
+.btn-multiline {
+  white-space: normal;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.btn-duration {
+  display: block;
+  font-size: 9px;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+
+/* ── Inline seed icon (small, in text) ───────────── */
+.seed-icon-inline {
+  width: 14px;
+  height: 14px;
+  vertical-align: middle;
+  margin-right: 2px;
+  border-radius: 2px;
+  object-fit: contain;
+}
+
+/* ── Travel widget seed icon ─────────────────────── */
+.travel-seed-icon {
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+  margin-right: 3px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+/* ── Connect screen explanation ─────────────────── */
+.connect-explain {
+  margin-top: 32px;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 16px;
+}
+
+.connect-explain-text {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.connect-explain-list {
+  font-size: 12px;
+  color: var(--muted);
+  padding-left: 18px;
+  line-height: 1.8;
+  margin-bottom: 14px;
+}
+
+.connect-manual-link {
+  font-size: 12px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.connect-manual-link:hover { text-decoration: underline; }
+
+/* ── Info tab content ────────────────────────────── */
+.info-content {
+  padding: 4px 0 24px;
+}
+
+.info-title {
+  font-size: 20px;
+  font-weight: 400;
+  margin-bottom: 12px;
+}
+
+.info-intro {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.info-para {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.info-list {
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 18px;
+  line-height: 1.9;
+  margin-bottom: 20px;
+}
+
+.info-manual-wrap {
+  margin-top: 24px;
+}

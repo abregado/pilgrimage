@@ -1,9 +1,13 @@
 import { getOrCreateDeviceId } from './utils.js';
-import { setState, setConnected, updateScreenFromState } from './state.js';
+import { setState, setConnected, updateScreenFromState, setTab,
+         getAutoArrive, clearJourneyLog,
+         getPendingPickSeed, clearPendingPickSeed } from './state.js';
 import { render } from './render.js';
 import { startTravelAnim, stopTravelAnim } from './screens/location.js';
+import { stopMapTravelAnim } from './screens/map.js';
 
 let ws = null;
+let _prevGardenerState = null;
 
 export function connect() {
   const deviceId = getOrCreateDeviceId();
@@ -17,28 +21,56 @@ export function connect() {
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
+
     if (msg.type === 'state') {
       setConnected(true);
       setState(msg.data);
       updateScreenFromState();
-      render();
 
       const gardener = msg.data?.gardener;
-      if (gardener?.state === 'walking' && msg.data.path) {
+      const newState = gardener?.state ?? null;
+
+      // Auto-arrive: skip arrival screen, immediately continue
+      if (newState === 'arriving' && getAutoArrive()) {
+        clearJourneyLog();
+        sendAction({ type: 'continue' });
+        _prevGardenerState = newState;
+        return;
+      }
+
+      // Switch to location tab when walking begins (e.g. from map tab)
+      if (newState === 'walking' && _prevGardenerState !== 'walking') {
+        setTab('location');
+      }
+
+      render();
+
+      if (newState === 'walking' && msg.data.path) {
         startTravelAnim(
           msg.data.path,
           msg.data.movementSpeed,
           gardener.speedBonus,
           msg.data.rulesSpeedBonus
         );
+        // Auto-pick seed chosen in the embark picker
+        const pending = getPendingPickSeed();
+        if (pending && pending !== gardener.seed &&
+            gardener.availableSeeds?.includes(pending)) {
+          sendAction({ type: 'pick_seed', seedId: pending });
+        }
+        clearPendingPickSeed();
       } else {
         stopTravelAnim();
+        stopMapTravelAnim();
       }
+
+      _prevGardenerState = newState;
     }
   };
 
   ws.onclose = () => {
     stopTravelAnim();
+    stopMapTravelAnim();
     setTimeout(connect, 3000);
   };
 

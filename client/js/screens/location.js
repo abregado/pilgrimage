@@ -1,9 +1,11 @@
-import { getState, getTab, getSelectedNurserySeedId, getSelectedPotId } from '../state.js';
-import { formatDistance, formatDuration } from '../utils.js';
+import { getState, getTab, getSelectedNurserySeedId, getSelectedPotId,
+         getEmbarkingPathId, getEmbarkChosenSeed, getAutoArrive } from '../state.js';
+import { formatDuration } from '../utils.js';
 import { SEED_MAP, SEEDS } from '../seeds.js';
-import { getPathsForLocation, LOCATION_MAP } from '../world.js';
+import { getPathsForLocation, LOCATION_MAP, PATHS } from '../world.js';
 import { renderMap } from './map.js';
 import { renderRecord } from './record.js';
+import { renderInfo } from './info.js';
 import { renderMeeple } from '../meeple.js';
 
 function seedIcon(seedId) {
@@ -19,16 +21,15 @@ function seedName(seedId) {
   return seed ? seed.name : seedId;
 }
 
-function seedSymbol(seedId) {
-  if (!seedId) return '';
-  const seed = SEED_MAP[seedId];
-  return seed ? seed.symbol : '';
-}
-
 function seedColor(seedId) {
   if (!seedId) return '#666';
   const seed = SEED_MAP[seedId];
   return seed ? seed.color : '#666';
+}
+
+function seedIconSmall(seedId) {
+  if (!seedId) return '';
+  return `<img src="/assets/seed_${seedId}.svg" class="seed-icon-inline" alt="" onerror="this.style.display='none'">`;
 }
 
 // Keep in sync with server/constants.js
@@ -110,7 +111,7 @@ export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus
     if (etaEl) {
       const remaining = Math.max(0, _animData.length - progress);
       const ticksLeft = Math.ceil(remaining / _animData.effectiveSpeed);
-      etaEl.textContent = `${formatDistance(remaining)} remaining · ~${formatDuration(ticksLeft)}`;
+      etaEl.textContent = `~${formatDuration(ticksLeft)} remaining`;
     }
 
     _animId = requestAnimationFrame(loop);
@@ -148,7 +149,6 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
   const clr  = '#c9a84c';
   const pClr = '#7a5c2e';
 
-  // Arrow points left or right of the head
   const arrowRight = `<polygon points="8,-9 15,-5 8,-1" fill="${clr}"/>`;
   const arrowLeft  = `<polygon points="-8,-9 -15,-5 -8,-1" fill="${clr}"/>`;
 
@@ -174,29 +174,8 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
         <span>${fromName}</span><span>${toName}</span>
       </div>
       ${svg}
-      <div id="travel-eta" class="path-visual-eta">${formatDistance(Math.max(0, remaining))} remaining · ~${formatDuration(ticksLeft)}</div>
+      <div id="travel-eta" class="path-visual-eta">~${formatDuration(ticksLeft)} remaining</div>
     </div>`;
-}
-
-function renderSeedPicker(seeds, currentSeed, promptText) {
-  if (!seeds || seeds.length === 0) return '';
-  let html = `<div class="section">`;
-  if (promptText) html += `<p class="seed-carry-prompt">${promptText}</p>`;
-  html += `<div class="nursery-grid">`;
-  for (const seedId of seeds) {
-    const seed = SEED_MAP[seedId];
-    const color = seed ? seed.color : '#666';
-    const isSelected = currentSeed === seedId;
-    html += `
-      <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
-        data-action="pick_seed" data-seed-id="${seedId}"
-        ${isSelected ? 'disabled' : ''}>
-        ${seedIcon(seedId)}
-        <span class="nursery-seed-name" style="color:${color}">${seed ? seed.name : seedId}</span>
-      </button>`;
-  }
-  html += `</div></div>`;
-  return html;
 }
 
 function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySeedId) {
@@ -214,7 +193,6 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     const isSelected = pot.id === selectedPotId;
     const stage = pot.seedId ? getGrowthStage(pot.lastPlantedTick, tick) : null;
 
-    // Decoration dots only visible for selected pot
     let decDots = '';
     if (isSelected && pot.decoratorCount > 0) {
       const dotR = 33;
@@ -251,7 +229,7 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
 
       if (pot.seedId) {
         const color = seedColor(pot.seedId);
-        html += `<div class="pot-center-name" style="color:${color}">${seedName(pot.seedId)}</div>`;
+        html += `<div class="pot-center-name" style="color:${color}">${seedIconSmall(pot.seedId)}${seedName(pot.seedId)}</div>`;
         if (stage) html += `<div class="pot-center-stage badge badge-stage badge-stage-${stage}">${stage}</div>`;
         if (next)  html += `<div class="pot-center-next">${next.next} in ${formatDuration(next.remaining)}</div>`;
         if (pot.settlingUntil !== null) {
@@ -270,13 +248,13 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
           const dur = potTendingDuration(pot, tick);
           const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
           html += canPlant
-            ? `<button class="btn btn-sm btn-accent" data-action="pot" data-pot-id="${pot.id}">Plant ${name} ${durLabel}</button>`
-            : `<button class="btn btn-sm" disabled title="No energy">Plant ${name} ${durLabel}</button>`;
+            ? `<button class="btn btn-sm btn-accent btn-multiline" data-action="pot" data-pot-id="${pot.id}">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${durLabel}</span></button>`
+            : `<button class="btn btn-sm btn-multiline" disabled title="No energy">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${durLabel}</span></button>`;
         }
         if (!selectedNurserySeedId && pot.seedId) {
           const dur = potTendingDuration(pot, tick);
           const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
-          html += `<button class="btn btn-sm btn-danger" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear ${durLabel}</button>`;
+          html += `<button class="btn btn-sm btn-danger btn-multiline" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear<span class="btn-duration">${durLabel}</span></button>`;
         }
         if (pot.seedId) {
           if (pot.iDecorated) {
@@ -296,6 +274,13 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
   return html;
 }
 
+const TAB_ICONS = {
+  location: '/assets/nav-location.svg',
+  map:      '/assets/nav-map.svg',
+  record:   '/assets/nav-record.svg',
+  info:     '/assets/nav-info.svg',
+};
+
 export function renderLocation(app) {
   const state = getState();
   const tab = getTab();
@@ -309,9 +294,10 @@ export function renderLocation(app) {
 
   const tabBar = `
     <nav class="tab-bar">
-      <button class="tab-btn${tab === 'location' ? ' active' : ''}" data-action="tab" data-tab="location">Location</button>
-      <button class="tab-btn${tab === 'map' ? ' active' : ''}" data-action="tab" data-tab="map">Map</button>
-      <button class="tab-btn${tab === 'record' ? ' active' : ''}" data-action="tab" data-tab="record">Record</button>
+      ${['location', 'map', 'record', 'info'].map(t => `
+        <button class="tab-btn${tab === t ? ' active' : ''}" data-action="tab" data-tab="${t}" aria-label="${t}">
+          <img src="${TAB_ICONS[t]}" class="tab-icon" alt="${t}">
+        </button>`).join('')}
     </nav>
   `;
 
@@ -327,28 +313,54 @@ export function renderLocation(app) {
     return;
   }
 
+  if (tab === 'info') {
+    app.innerHTML = `<div class="main-screen"><div class="screen-content" id="screen-content"></div>${tabBar}</div>`;
+    renderInfo(document.getElementById('screen-content'));
+    return;
+  }
+
   // ── Walking state: show travel content in Location tab ────────────────────
   if (gardener.state === 'walking' && path) {
     const destId   = path.pathFrom === path.fromId ? path.toId : path.fromId;
     const destName = (LOCATION_MAP[destId] || {}).name || destId;
+    const autoArrive = getAutoArrive();
 
     let html = `<div class="main-screen"><div class="screen-content">`;
 
     html += `<div class="location-header"><h2>Travelling to ${destName}</h2></div>`;
 
+    // Reverse button at top center
+    html += `<div class="reverse-row">
+      <button class="btn btn-sm" data-action="reverse">↩ Reverse</button>
+    </div>`;
+
     html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus);
 
-    if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
-      html += renderSeedPicker(
-        gardener.availableSeeds,
-        gardener.seed,
-        `Which seed do you wish to carry with you into ${destName}?`
-      );
-    }
-
-    html += `<div class="section">
-      <button class="btn" data-action="reverse">Reverse Direction</button>
+    // Auto-arrive toggle
+    html += `<div class="auto-arrive-row">
+      <button class="btn btn-sm${autoArrive ? ' btn-accent active' : ''}" data-action="toggle_auto_arrive">
+        Auto-arrive${autoArrive ? ' ✓' : ''}
+      </button>
     </div>`;
+
+    if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
+      html += `<div class="section">
+        <p class="seed-carry-prompt">Carrying into ${destName}:</p>
+        <div class="nursery-grid">`;
+      for (const seedId of gardener.availableSeeds) {
+        const seed = SEED_MAP[seedId];
+        const color = seed ? seed.color : '#666';
+        const isSelected = gardener.seed === seedId;
+        html += `
+          <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
+            data-action="pick_seed" data-seed-id="${seedId}"
+            ${isSelected ? 'disabled' : ''}>
+            ${seedIcon(seedId)}
+            <span class="nursery-seed-name" style="color:${color}">${seedIconSmall(seedId)}${seed ? seed.name : seedId}</span>
+          </button>`;
+      }
+      html += `</div></div>`;
+    }
 
     if (path.encounters && path.encounters.length > 0) {
       html += `<div class="section"><h3>Encountered (${path.encounters.length})</h3><div class="encounter-list">`;
@@ -360,7 +372,7 @@ export function renderLocation(app) {
             ${renderMeeple(enc.state)}
             ${seedIcon(enc.seed)}
             <div class="encounter-info">
-              <div class="encounter-seed">${encSeed ? encSeed.name : 'Carrying nothing'}</div>
+              <div class="encounter-seed">${encSeed ? `${seedIconSmall(enc.seed)} ${encSeed.name}` : 'Carrying nothing'}</div>
             </div>
             ${enc.seed && !carrying
               ? `<button class="btn btn-sm btn-sage" data-action="take_seed" data-from-id="${enc.id}">Take Seed</button>`
@@ -380,37 +392,74 @@ export function renderLocation(app) {
   const energyMax = gardener.energyMax ?? 0;
   const selectedNurserySeedId = getSelectedNurserySeedId();
   const selectedPotId = getSelectedPotId();
+  const embarkingPathId = getEmbarkingPathId();
 
   let html = `<div class="main-screen"><div class="screen-content">`;
 
+  // ── Unified top bar: meeples + location name + energy ─────────────────────
   if (location) {
     const population = 1 + (location.otherGardeners ? location.otherGardeners.length : 0);
     const allHere = [
       { state: gardener.state },
       ...(location.otherGardeners || []),
     ];
-    html += `<div class="population-row">`;
-    for (const g of allHere) {
-      html += renderMeeple(g.state);
-    }
+    const locName = location ? location.name : '...';
+
+    html += `<div class="location-top-bar">`;
+    html += `<div class="location-top-meeples">`;
+    for (const g of allHere) html += renderMeeple(g.state);
     html += `<span class="population-count">${population}</span>`;
     html += `</div>`;
+    html += `<h2 class="location-top-name">${locName}</h2>`;
+    html += `<div class="location-top-energy">`;
+    html += Array.from({ length: energyMax }, (_, i) =>
+      `<span class="energy-pip${i < energy ? ' full' : ''}"></span>`
+    ).join('');
+    html += `<span class="energy-label">${energy}/${energyMax}</span>`;
+    html += `</div></div>`;
+  } else {
+    const locName = '...';
+    html += `<div class="location-top-bar">`;
+    html += `<h2 class="location-top-name">${locName}</h2>`;
+    html += `</div>`;
   }
-
-  const locName = location ? location.name : '...';
-  html += `<div class="location-header">
-    <h2>${locName}</h2>
-    <div class="energy-bar">
-      ${Array.from({ length: energyMax }, (_, i) =>
-        `<span class="energy-pip${i < energy ? ' full' : ''}"></span>`
-      ).join('')}
-      <span class="energy-label">${energy}/${energyMax}</span>
-    </div>
-  </div>`;
 
   if (gardener.state === 'tending') {
     const remaining = gardener.tendingUntil !== null ? Math.max(0, gardener.tendingUntil - tick) : 0;
     html += `<div class="section"><div class="origin-bar"><span class="muted">Tending&hellip; (${formatDuration(remaining)})</span></div></div>`;
+  }
+
+  // ── Embark seed picker (replaces normal content) ──────────────────────────
+  if (embarkingPathId && gardener.state === 'resting' && location) {
+    const embarkPath = PATHS.find(p => p.id === embarkingPathId);
+    const destId = embarkPath ? (embarkPath.fromId === gardener.locationId ? embarkPath.toId : embarkPath.fromId) : null;
+    const destName = destId ? ((LOCATION_MAP[destId] || {}).name || destId) : '?';
+    const chosenSeed = getEmbarkChosenSeed();
+
+    html += `<div class="section">`;
+    html += `<p class="seed-carry-prompt">Which seed will you carry to <strong>${destName}</strong>?</p>`;
+    html += `<div class="nursery-grid">`;
+    for (const seedId of location.seedPool) {
+      const seed = SEED_MAP[seedId];
+      const color = seed ? seed.color : '#666';
+      const isChosen = chosenSeed === seedId;
+      html += `
+        <button class="nursery-seed${isChosen ? ' planting-selected' : ''}"
+          data-action="select_embark_seed" data-seed-id="${seedId}">
+          ${seedIcon(seedId)}
+          <span class="nursery-seed-name" style="color:${color}">${seedIconSmall(seedId)}${seed ? seed.name : seedId}</span>
+        </button>`;
+    }
+    html += `</div>`;
+    html += `<div class="embark-actions">
+      <button class="btn btn-sm btn-muted" data-action="cancel_embark">Cancel</button>
+      <button class="btn btn-sm btn-accent" data-action="embark">Embark →</button>
+    </div>`;
+    html += `</div>`;
+
+    html += `</div>${tabBar}</div>`;
+    app.innerHTML = html;
+    return;
   }
 
   if (location) {
@@ -439,7 +488,7 @@ export function renderLocation(app) {
             <button class="nursery-seed${isSelected ? ' planting-selected' : ''}${isCarried ? ' carried-badge' : ''}"
               data-action="select_nursery_seed" data-seed-id="${seedId}">
               ${seedIcon(seedId)}
-              <span class="nursery-seed-name" style="color:${color}">${seed ? seed.name : seedId}</span>
+              <span class="nursery-seed-name" style="color:${color}">${seedIconSmall(seedId)}${seed ? seed.name : seedId}</span>
               ${isCarried ? `<span class="nursery-carry-dot" title="Carrying"></span>` : ''}
             </button>`;
         }
@@ -466,7 +515,7 @@ export function renderLocation(app) {
             <div class="vision-footer">
               <span class="vision-progress">${rule.satisfiedCount} / ${rule.difficulty}</span>
               ${rule.satisfiedHere ? `<span class="vision-here">Here</span>` : ''}
-              ${rule.completed ? `<button class="btn btn-sm btn-muted vision-refresh-btn" data-action="delete_rule" data-rule-id="${rule.id}">Refresh</button>` : ''}
+              ${rule.completed ? `<span class="vision-badge">Complete</span>` : ''}
             </div>
           </div>`;
       }
@@ -490,8 +539,10 @@ export function renderLocation(app) {
         let destLabel;
         let memStrip = '';
         if (isVisited) {
-          const sym = originSeed ? `<span style="color:${originSeed.color}">${originSeed.symbol}</span> ` : '';
-          destLabel = `${sym}${destName}`;
+          const icon = originSeed
+            ? `<img src="/assets/seed_${originSeed.id}.svg" class="travel-seed-icon" alt="" onerror="this.style.display='none'">`
+            : '';
+          destLabel = `${icon}${destName}`;
           const memPots = (gardener.locationMemory || {})[destId];
           if (memPots) {
             memStrip = `<div class="pot-memory-strip">`;
@@ -513,20 +564,11 @@ export function renderLocation(app) {
           <div class="path-row">
             <div class="path-info">
               <div class="path-dest">${destLabel}</div>
-              <div class="path-dist">${formatDistance(p.length)} · ~${formatDuration(ticks)}</div>
+              <div class="path-dist">~${formatDuration(ticks)}</div>
               ${memStrip}
             </div>
             <button class="btn btn-sm" data-action="walk" data-path-id="${p.id}">Walk</button>
           </div>`;
-      }
-      html += `</div></div>`;
-    }
-
-    // ── 5. Other gardeners ───────────────────────────────────────────────────
-    if (location.otherGardeners && location.otherGardeners.length > 0) {
-      html += `<div class="section"><h3>Here now</h3><div class="gardener-list">`;
-      for (const g of location.otherGardeners) {
-        html += `<div class="gardener-row">${renderMeeple(g.state)}${seedIcon(g.seed)}</div>`;
       }
       html += `</div></div>`;
     }
