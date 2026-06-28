@@ -27,12 +27,19 @@ function tick(getState, saveState, broadcast) {
   const state = getState();
   let changed = false;
 
-  // Build gardener.id → deviceId reverse map; pre-populate notifySet with non-walking gardeners
+  // Build gardener.id → deviceId reverse map
   const idToDevice = {};
   const notifySet = new Set();
   for (const [deviceId, g] of Object.entries(state.gardeners)) {
     idToDevice[g.id] = deviceId;
-    if (g.state !== 'walking') notifySet.add(deviceId);
+  }
+  // Map locationId → non-walking deviceIds for pot-mutation notifications
+  const notifyAtLoc = {};
+  for (const [deviceId, g] of Object.entries(state.gardeners)) {
+    if (g.state !== 'walking' && g.locationId) {
+      if (!notifyAtLoc[g.locationId]) notifyAtLoc[g.locationId] = [];
+      notifyAtLoc[g.locationId].push(deviceId);
+    }
   }
 
   // 1. Increment tick
@@ -162,6 +169,7 @@ function tick(getState, saveState, broadcast) {
       if (pot.settlingUntil !== null && pot.settlingUntil <= state.tick) {
         pot.settlingUntil = null;
         changed = true;
+        for (const dId of (notifyAtLoc[locId] || [])) notifySet.add(dId);
       }
       if (pot.seedId && pot.lastPlantedTick !== null &&
           (state.tick - pot.lastPlantedTick) >= DEAD_TICKS) {
@@ -177,12 +185,13 @@ function tick(getState, saveState, broadcast) {
         pot.decorators = [];
         pot.settlingUntil = null;
         changed = true;
+        for (const dId of (notifyAtLoc[locId] || [])) notifySet.add(dId);
       }
     }
   }
 
   // 6. Seed stage observation for resting gardeners
-  for (const gardener of Object.values(state.gardeners)) {
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     if (gardener.state !== 'resting' || !gardener.locationId) continue;
     const locData = state.locations[gardener.locationId];
     if (!locData) continue;
@@ -193,21 +202,24 @@ function tick(getState, saveState, broadcast) {
           !gardener.record.seedLog[pot.seedId][stage]) {
         gardener.record.seedLog[pot.seedId][stage] = true;
         changed = true;
+        notifySet.add(deviceId);
       }
     }
   }
 
   // 7. Energy regen and energyMax sync
-  for (const gardener of Object.values(state.gardeners)) {
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     const newMax = computeEnergyMax(gardener, state);
     if (gardener.energyMax !== newMax) {
       gardener.energyMax = newMax;
       if (gardener.energy > gardener.energyMax) gardener.energy = gardener.energyMax;
       changed = true;
+      notifySet.add(deviceId);
     }
     if (gardener.energy < gardener.energyMax && state.tick % ENERGY_REGEN_TICKS === 0) {
       gardener.energy += 1;
       changed = true;
+      notifySet.add(deviceId);
     }
   }
 
@@ -220,7 +232,7 @@ function tick(getState, saveState, broadcast) {
       const rule = gardener.rules[i];
       if (rule.deletedTick !== null && state.tick >= rule.refreshAt) {
         const fresh = pickNewRuleForLevel(rule.level, gardener.rules);
-        if (fresh) { gardener.rules[i] = fresh; changed = true; }
+        if (fresh) { gardener.rules[i] = fresh; changed = true; notifySet.add(deviceId); }
       }
     }
 
@@ -273,10 +285,11 @@ function tick(getState, saveState, broadcast) {
   }
 
   // 9. Sleep check
-  for (const gardener of Object.values(state.gardeners)) {
+  for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     if (gardener.state === 'resting' && gardener.lastActiveTick + SLEEP_THRESHOLD < state.tick) {
       gardener.state = 'sleeping';
       changed = true;
+      notifySet.add(deviceId);
     }
   }
 

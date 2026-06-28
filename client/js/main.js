@@ -1,4 +1,5 @@
 import { connect, sendAction } from './network.js';
+import { startClockUpdater } from './clock.js';
 import { getState, getTab, setTab,
          getSelectedNurserySeedId, setSelectedNurserySeedId,
          getSelectedPotId, setSelectedPotId,
@@ -169,3 +170,4 @@ document.getElementById('app').addEventListener('click', (e) => {
 });
 
 connect();
+startClockUpdater();

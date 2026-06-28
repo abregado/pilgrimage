@@ -7,7 +7,7 @@ export const BASE_ENERGY_MAX      = 8;
 export const ENERGY_BONUS_TIME    = 1;   // +3 per time milestone (day, week)
 export const ENERGY_BONUS_EXPLORE = 1;   // +5 for visiting all 15 locations
 export const ENERGY_BONUS_RULE    = 1;   // +5 per completed non-deleted rule
-export const ENERGY_REGEN_TICKS   = 50; // 1 energy per 5 minutes
+export const ENERGY_REGEN_TICKS   = 300; // 1 energy per 5 minutes
 
 export const ENERGY_COST_BASE      = 1;  // empty / dead / seed-stage pot
 export const ENERGY_COST_SEEDLING  = 2;

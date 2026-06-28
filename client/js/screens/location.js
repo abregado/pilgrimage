@@ -1,5 +1,6 @@
 import { getState, getTab, getSelectedNurserySeedId, getSelectedPotId,
          getEmbarkingPathId, getEmbarkingPathIds, getEmbarkChosenSeed, getAutoArrive } from '../state.js';
+import { liveTick } from '../clock.js';
 import { formatDuration } from '../utils.js';
 import { SEED_MAP, SEEDS } from '../seeds.js';
 import { getPathsForLocation, LOCATION_MAP, PATHS, PATH_MAP } from '../world.js';
@@ -179,7 +180,7 @@ function renderEnergyBar(energy, energyMax, energyRegenAt, tick) {
   html += `<span class="energy-label">${energy}/${energyMax}</span>`;
   if (energyRegenAt !== null && energy < energyMax) {
     const secs = Math.max(0, energyRegenAt - tick);
-    html += `<span class="energy-regen">+1 in ${formatDuration(secs)}</span>`;
+    html += `<span class="energy-regen" data-countdown="regen">+1 in ${formatDuration(secs)}</span>`;
   }
   html += `</div>`;
   return html;
@@ -239,10 +240,14 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
         const color = seedColor(pot.seedId);
         html += `<div class="pot-center-name" style="color:${color}">${seedIconSmall(pot.seedId)}${seedName(pot.seedId)}</div>`;
         if (stage) html += `<div class="pot-center-stage badge badge-stage badge-stage-${stage}">${stage}</div>`;
-        if (next)  html += `<div class="pot-center-next">${next.next} in ${formatDuration(next.remaining)}</div>`;
+        if (next) {
+          const stageToTicks = { seedling: SEEDLING_TICKS, grown: GROWN_TICKS, fruiting: FRUITING_TICKS, dead: DEAD_TICKS };
+          const untilTick = pot.lastPlantedTick + (stageToTicks[next.next] ?? 0);
+          html += `<div class="pot-center-next" data-countdown="stage" data-next="${next.next}" data-until="${untilTick}">${next.next} in ${formatDuration(next.remaining)}</div>`;
+        }
         if (pot.settlingUntil !== null) {
           const rem = Math.max(0, pot.settlingUntil - tick);
-          html += `<div class="pot-center-settling">settling ${formatDuration(rem)}</div>`;
+          html += `<div class="pot-center-settling" data-countdown="settling" data-until="${pot.settlingUntil}">settling ${formatDuration(rem)}</div>`;
         }
         html += `<div class="pot-center-dec">${pot.decoratorCount} dec.</div>`;
       } else {
@@ -297,7 +302,8 @@ export function renderLocation(app) {
     return;
   }
 
-  const { gardener, location, path, tick, movementSpeed, rulesSpeedBonus } = state;
+  const { gardener, location, path, movementSpeed, rulesSpeedBonus } = state;
+  const tick = liveTick();
 
   const tabBar = `
     <nav class="tab-bar">
@@ -528,7 +534,7 @@ export function renderLocation(app) {
         let safeTag = '';
         if (rule.completed && rule.safeUntil !== null && rule.safeUntil > tick) {
           const safeRemaining = Math.max(0, rule.safeUntil - tick);
-          safeTag = `<span class="vision-safe">Safe ${formatDuration(safeRemaining)}</span>`;
+          safeTag = `<span class="vision-safe" data-countdown="vision-safe" data-until="${rule.safeUntil}">Safe ${formatDuration(safeRemaining)}</span>`;
         }
         html += `
           <div class="vision-card${rule.completed ? ' completed' : ''}${rule.satisfiedHere ? ' satisfied-here' : ''}">

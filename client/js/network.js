@@ -2,6 +2,7 @@ import { getOrCreateDeviceId } from './utils.js';
 import { setState, setConnected, updateScreenFromState, setTab,
          getAutoArrive, clearJourneyLog,
          getPendingPickSeed, clearPendingPickSeed } from './state.js';
+import { setServerTick } from './clock.js';
 import { render } from './render.js';
 import { startTravelAnim, stopTravelAnim } from './screens/location.js';
 import { stopMapTravelAnim } from './screens/map.js';
@@ -26,8 +27,13 @@ export function connect() {
       setConnected(true);
       setState(msg.data);
       updateScreenFromState();
-
       const gardener = msg.data?.gardener;
+      setServerTick(
+        msg.data.tick,
+        gardener?.energy ?? 0,
+        gardener?.energyRegenAt ?? null,
+        gardener?.energyMax ?? 0,
+      );
       const newState = gardener?.state ?? null;
 
       // Auto-arrive: skip arrival screen, immediately continue
