@@ -1,8 +1,8 @@
 import { getState, getTab, getSelectedNurserySeedId, getSelectedPotId,
-         getEmbarkingPathId, getEmbarkChosenSeed, getAutoArrive } from '../state.js';
+         getEmbarkingPathId, getEmbarkingPathIds, getEmbarkChosenSeed, getAutoArrive } from '../state.js';
 import { formatDuration } from '../utils.js';
 import { SEED_MAP, SEEDS } from '../seeds.js';
-import { getPathsForLocation, LOCATION_MAP, PATHS } from '../world.js';
+import { getPathsForLocation, LOCATION_MAP, PATHS, PATH_MAP } from '../world.js';
 import { renderMap } from './map.js';
 import { renderRecord } from './record.js';
 import { renderInfo } from './info.js';
@@ -420,16 +420,34 @@ export function renderLocation(app) {
 
   // ── Embark seed picker (replaces normal content) ──────────────────────────
   if (embarkingPathId && gardener.state === 'resting' && location) {
-    const embarkPath = PATHS.find(p => p.id === embarkingPathId);
-    const destId = embarkPath ? (embarkPath.fromId === gardener.locationId ? embarkPath.toId : embarkPath.fromId) : null;
-    const destName = destId ? ((LOCATION_MAP[destId] || {}).name || destId) : '?';
+    const embarkingPathIds = getEmbarkingPathIds(); // non-null when entering from map
+    const isRoute = embarkingPathIds && embarkingPathIds.length > 1;
     const chosenSeed = getEmbarkChosenSeed();
-
     const baseSpeed = movementSpeed * (gardener.speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
-    const pathLen = embarkPath ? embarkPath.length : 0;
-    const normalTicks = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
-    const fastTicks   = pathLen > 0 ? Math.ceil(pathLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
-    const canFast = (gardener.energy ?? 0) >= FAST_TRAVEL_COST;
+
+    let destName, normalTicks, fastTicks;
+    if (isRoute) {
+      // Walk the route chain to find final destination and total travel length
+      let prevLocId = gardener.locationId;
+      let totalLen = 0;
+      for (const pid of embarkingPathIds) {
+        const p = PATH_MAP[pid];
+        if (!p) break;
+        prevLocId = p.fromId === prevLocId ? p.toId : p.fromId;
+        totalLen += p.length;
+      }
+      destName = (LOCATION_MAP[prevLocId] || {}).name || prevLocId;
+      normalTicks = totalLen > 0 ? Math.ceil(totalLen / baseSpeed) : 0;
+      fastTicks = 0;
+    } else {
+      const embarkPath = PATHS.find(p => p.id === embarkingPathId);
+      const destId = embarkPath ? (embarkPath.fromId === gardener.locationId ? embarkPath.toId : embarkPath.fromId) : null;
+      destName = destId ? ((LOCATION_MAP[destId] || {}).name || destId) : '?';
+      const pathLen = embarkPath ? embarkPath.length : 0;
+      normalTicks = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
+      fastTicks   = pathLen > 0 ? Math.ceil(pathLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
+    }
+    const canFast = !isRoute && (gardener.energy ?? 0) >= FAST_TRAVEL_COST;
 
     html += `<div class="section">`;
     html += `<p class="seed-carry-prompt">Which seed will you carry to <strong>${destName}</strong>?</p>`;
@@ -449,9 +467,11 @@ export function renderLocation(app) {
     html += `<div class="embark-actions">
       <button class="btn btn-sm btn-muted" data-action="cancel_embark">Cancel</button>
       <button class="btn btn-sm btn-accent" data-action="embark">Embark → <span class="embark-time">~${formatDuration(normalTicks)}</span></button>
-      ${canFast
-        ? `<button class="btn btn-sm btn-accent" data-action="embark_fast">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
-        : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+      ${!isRoute
+        ? canFast
+          ? `<button class="btn btn-sm btn-accent" data-action="embark_fast">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+          : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+        : ''
       }
     </div>`;
     html += `</div>`;

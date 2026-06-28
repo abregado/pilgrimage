@@ -4,7 +4,7 @@ import { getState, getTab, setTab,
          getSelectedPotId, setSelectedPotId,
          setSelectedMapLoc, clearSelectedMapLoc, getSelectedMapLocId,
          getConnected,
-         getEmbarkingPathId, getEmbarkChosenSeed,
+         getEmbarkingPathId, getEmbarkingPathIds, getEmbarkChosenSeed,
          startEmbarking, setEmbarkChosenSeed, clearEmbarking,
          setPendingPickSeed,
          clearJourneyLog, setAutoArrive } from './state.js';
@@ -65,7 +65,10 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'queue_travel': {
       const pathIds = JSON.parse(btn.dataset.pathIds);
-      sendAction({ type: 'queue_travel', pathIds });
+      const st = getState();
+      startEmbarking(pathIds[0], st?.gardener?.seed ?? null, pathIds);
+      setTab('location');
+      render();
       break;
     }
     case 'walk': {
@@ -82,13 +85,18 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'embark': {
       const pathId = getEmbarkingPathId();
+      const pathIds = getEmbarkingPathIds();
       const chosenSeed = getEmbarkChosenSeed();
       const currentSeed = getState()?.gardener?.seed ?? null;
       clearEmbarking();
       if (chosenSeed !== currentSeed) {
         setPendingPickSeed(chosenSeed);
       }
-      sendAction({ type: 'walk', pathId });
+      if (pathIds && pathIds.length > 1) {
+        sendAction({ type: 'queue_travel', pathIds });
+      } else {
+        sendAction({ type: 'walk', pathId });
+      }
       break;
     }
     case 'embark_fast': {

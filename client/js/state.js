@@ -11,6 +11,7 @@ let _selectedMapLocId = null;       // location selected on the map
 // Embark flow: pre-walk seed selection
 let _embarkingPathId = null;   // pathId being considered; null = not in embark mode
 let _embarkChosenSeed = null;  // seed chosen for embark picker
+let _embarkingPathIds = null;  // full route array when entering embark from map; null for single walk
 
 // Seed to auto-pick once walking state arrives from server
 let _pendingPickSeed = null;
@@ -66,15 +67,18 @@ export function clearSelectedMapLoc()         { _selectedMapLocId = null; }
 
 // Embark flow helpers
 export function getEmbarkingPathId()  { return _embarkingPathId; }
+export function getEmbarkingPathIds() { return _embarkingPathIds; }
 export function getEmbarkChosenSeed() { return _embarkChosenSeed; }
-export function startEmbarking(pathId, defaultSeed) {
+export function startEmbarking(pathId, defaultSeed, pathIds = null) {
   _embarkingPathId = pathId;
   _embarkChosenSeed = defaultSeed;
+  _embarkingPathIds = pathIds;
 }
 export function setEmbarkChosenSeed(seedId) { _embarkChosenSeed = seedId; }
 export function clearEmbarking() {
   _embarkingPathId = null;
   _embarkChosenSeed = null;
+  _embarkingPathIds = null;
 }
 
 // Pending seed pick after walk action
