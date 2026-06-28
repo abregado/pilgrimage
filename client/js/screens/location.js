@@ -438,7 +438,7 @@ export function renderLocation(app) {
       }
       destName = (LOCATION_MAP[prevLocId] || {}).name || prevLocId;
       normalTicks = totalLen > 0 ? Math.ceil(totalLen / baseSpeed) : 0;
-      fastTicks = 0;
+      fastTicks   = totalLen > 0 ? Math.ceil(totalLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
     } else {
       const embarkPath = PATHS.find(p => p.id === embarkingPathId);
       const destId = embarkPath ? (embarkPath.fromId === gardener.locationId ? embarkPath.toId : embarkPath.fromId) : null;
@@ -447,7 +447,7 @@ export function renderLocation(app) {
       normalTicks = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
       fastTicks   = pathLen > 0 ? Math.ceil(pathLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
     }
-    const canFast = !isRoute && (gardener.energy ?? 0) >= FAST_TRAVEL_COST;
+    const canFast = (gardener.energy ?? 0) >= FAST_TRAVEL_COST;
 
     html += `<div class="section">`;
     html += `<p class="seed-carry-prompt">Which seed will you carry to <strong>${destName}</strong>?</p>`;
@@ -467,11 +467,9 @@ export function renderLocation(app) {
     html += `<div class="embark-actions">
       <button class="btn btn-sm btn-muted" data-action="cancel_embark">Cancel</button>
       <button class="btn btn-sm btn-accent" data-action="embark">Embark → <span class="embark-time">~${formatDuration(normalTicks)}</span></button>
-      ${!isRoute
-        ? canFast
-          ? `<button class="btn btn-sm btn-accent" data-action="embark_fast">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
-          : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
-        : ''
+      ${canFast
+        ? `<button class="btn btn-sm btn-accent" data-action="embark_fast">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
+        : `<button class="btn btn-sm" disabled title="Not enough energy">⚡ Fast → <span class="embark-time">~${formatDuration(fastTicks)}</span> <span class="embark-cost">${FAST_TRAVEL_COST} energy</span></button>`
       }
     </div>`;
     html += `</div>`;

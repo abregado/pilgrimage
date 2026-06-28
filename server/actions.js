@@ -449,7 +449,7 @@ export function deleteGardener(deviceId, state) {
   return ok();
 }
 
-export function queueTravel(deviceId, pathIds, state) {
+export function queueTravel(deviceId, pathIds, state, fast = false) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
@@ -467,5 +467,5 @@ export function queueTravel(deviceId, pathIds, state) {
   }
 
   gardener.travelQueue = pathIds.slice(1);
-  return walk(deviceId, pathIds[0], state);
+  return walk(deviceId, pathIds[0], state, fast);
 }

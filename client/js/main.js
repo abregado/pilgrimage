@@ -101,13 +101,18 @@ document.getElementById('app').addEventListener('click', (e) => {
     }
     case 'embark_fast': {
       const pathId = getEmbarkingPathId();
+      const pathIds = getEmbarkingPathIds();
       const chosenSeed = getEmbarkChosenSeed();
       const currentSeed = getState()?.gardener?.seed ?? null;
       clearEmbarking();
       if (chosenSeed !== currentSeed) {
         setPendingPickSeed(chosenSeed);
       }
-      sendAction({ type: 'walk', pathId, fast: true });
+      if (pathIds && pathIds.length > 1) {
+        sendAction({ type: 'queue_travel', pathIds, fast: true });
+      } else {
+        sendAction({ type: 'walk', pathId, fast: true });
+      }
       break;
     }
     case 'activate_fast_travel': {
