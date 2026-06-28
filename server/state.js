@@ -24,7 +24,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 11;
+const CURRENT_VERSION = 13;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
