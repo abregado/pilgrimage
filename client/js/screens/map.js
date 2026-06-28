@@ -2,6 +2,7 @@ import { LOCATIONS, PATHS, LOCATION_MAP, PATH_MAP } from '../world.js';
 import { SEEDS, SEED_MAP } from '../seeds.js';
 import { getSelectedMapLocId } from '../state.js';
 import { formatDuration } from '../utils.js';
+import { FAST_TRAVEL_MULTI } from '/js/constants.js';
 
 const SVG_W = 800;
 const SVG_H = 900;
@@ -84,7 +85,8 @@ function startMapTravelAnim(pathView, gardener, state) {
   const to = LOCATION_MAP[destId];
   if (!from || !to) return;
 
-  const effectiveSpeed = state.movementSpeed * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0));
+  const fastMulti = gardener.fastTravel ? FAST_TRAVEL_MULTI : 1;
+  const effectiveSpeed = state.movementSpeed * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0)) * fastMulti;
   const startProgress = pathView.progress;
   const startTime = performance.now();
 

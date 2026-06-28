@@ -1,10 +1,14 @@
 import express from 'express';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import { initState, getState, getGardenerView } from './state.js';
 import { loadState, saveState } from './persistence.js';
 import { startGameLoop } from './gameLoop.js';
 import * as actions from './actions.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 const server = createServer(app);
@@ -16,6 +20,11 @@ app.use((_req, res, next) => {
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   next();
+});
+
+// Serve server constants to client as an ES module
+app.get('/js/constants.js', (_req, res) => {
+  res.sendFile(join(__dirname, 'constants.js'));
 });
 
 // Serve assets and client

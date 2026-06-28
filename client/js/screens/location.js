@@ -32,18 +32,10 @@ function seedIconSmall(seedId) {
   return `<img src="/assets/seed_${seedId}.svg" class="seed-icon-inline" alt="" onerror="this.style.display='none'">`;
 }
 
-// Keep in sync with server/constants.js
-const SEEDLING_TICKS    = 1800;
-const GROWN_TICKS       = 21600;
-const FRUITING_TICKS    = 604800;
-const DEAD_TICKS        = 2592000;
-const FAST_TRAVEL_COST  = 2;
-const FAST_TRAVEL_MULTI = 5;
-
-const ENERGY_COST_BASE     = 1;
-const ENERGY_COST_SEEDLING = 3;
-const ENERGY_COST_GROWN    = 8;
-const ENERGY_COST_FRUITING = 12;
+import { SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
+         FAST_TRAVEL_COST, FAST_TRAVEL_MULTI,
+         ENERGY_COST_BASE, ENERGY_COST_SEEDLING, ENERGY_COST_GROWN, ENERGY_COST_FRUITING,
+       } from '/js/constants.js';
 
 function getGrowthStage(lastPlantedTick, currentTick) {
   if (lastPlantedTick === null || lastPlantedTick === undefined) return null;
@@ -81,9 +73,10 @@ function potEnergyCost(pot, tick) {
 let _animId = null;
 let _animData = null;
 
-export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus) {
+export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus, fastTravel) {
   stopTravelAnim();
-  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
+  const fastMulti = fastTravel ? FAST_TRAVEL_MULTI : 1;
+  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0)) * fastMulti;
   _animData = {
     progress: path.progress,
     startTime: performance.now(),
@@ -130,10 +123,11 @@ export function stopTravelAnim() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) {
+function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus, fastTravel) {
   const frac = Math.min(1, path.progress / path.length);
   const remaining = path.length - path.progress;
-  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
+  const fastMulti = fastTravel ? FAST_TRAVEL_MULTI : 1;
+  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0)) * fastMulti;
   const ticksLeft = Math.ceil(remaining / effectiveSpeed);
 
   const fromName = path.fromName || path.fromId;
@@ -358,7 +352,7 @@ export function renderLocation(app) {
       }
     </div>`;
 
-    html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus);
+    html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus, gardener.fastTravel ?? false);
 
     html += `<div class="auto-arrive-row">
       <button class="btn btn-sm${autoArrive ? ' btn-accent active' : ''}" data-action="toggle_auto_arrive">

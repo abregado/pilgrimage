@@ -50,7 +50,8 @@ export function connect() {
           msg.data.path,
           msg.data.movementSpeed,
           gardener.speedBonus,
-          msg.data.rulesSpeedBonus
+          msg.data.rulesSpeedBonus,
+          gardener.fastTravel ?? false
         );
         // Auto-pick seed chosen in the embark picker
         const pending = getPendingPickSeed();
