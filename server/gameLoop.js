@@ -1,6 +1,9 @@
-import { TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
-         SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
-         RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE } from './constants.js';
+import {
+  TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
+  SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
+  RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
+  RULE_SAFE_TIME, INITIAL_RULE_SLOTS,
+} from './constants.js';
 import { PATH_MAP } from './world.js';
 import { SEEDS } from './seeds.js';
 import { computeEnergyMax } from './state.js';
@@ -38,8 +41,10 @@ function tick(getState, saveState, broadcast) {
   // 2. Advance walking gardeners (client animates locally — no notify needed for progress only)
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state !== 'walking') continue;
-    const completedRules = (gardener.rules || []).filter(r => r.completed && r.deletedTick === null).length;
-    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedRules * SPEED_BONUS_PER_RULE);
+    const activeRules = (gardener.rules || []).filter(r => r.deletedTick === null);
+    const completedCount = activeRules.filter(r => r.completed).length;
+    const fullVisionBonus = completedCount === INITIAL_RULE_SLOTS ? SPEED_BONUS_FULL_VISION : 0;
+    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus);
     changed = true;
   }
 
@@ -77,7 +82,7 @@ function tick(getState, saveState, broadcast) {
         }
         for (const otherG of Object.values(state.gardeners)) {
           if (otherG.id !== gardener.id && otherG.locationId === destId &&
-              (otherG.state === 'resting' || otherG.state === 'tending') && otherG.seed) {
+              otherG.state === 'resting' && otherG.seed) {
             poolSet.add(otherG.seed);
           }
         }
@@ -150,16 +155,7 @@ function tick(getState, saveState, broadcast) {
     }
   }
 
-  // 5. Tending expiry
-  for (const gardener of Object.values(state.gardeners)) {
-    if (gardener.state === 'tending' && gardener.tendingUntil !== null && gardener.tendingUntil <= state.tick) {
-      gardener.state = 'resting';
-      gardener.tendingUntil = null;
-      changed = true;
-    }
-  }
-
-  // 6. Settling expiry and dead-pot cleanup (with dead-stage marking for resting gardeners)
+  // 5. Settling expiry and dead-pot cleanup (with dead-stage marking for resting gardeners)
   for (const [locId, locData] of Object.entries(state.locations)) {
     for (const pot of locData.pots) {
       if (pot.settlingUntil !== null && pot.settlingUntil <= state.tick) {
@@ -168,7 +164,6 @@ function tick(getState, saveState, broadcast) {
       }
       if (pot.seedId && pot.lastPlantedTick !== null &&
           (state.tick - pot.lastPlantedTick) >= DEAD_TICKS) {
-        // Mark dead seen for any resting gardener at this location before clearing
         for (const g of Object.values(state.gardeners)) {
           if (g.state === 'resting' && g.locationId === locId &&
               g.record.seedLog[pot.seedId] && !g.record.seedLog[pot.seedId].dead) {
@@ -185,7 +180,7 @@ function tick(getState, saveState, broadcast) {
     }
   }
 
-  // 7. Seed stage observation for resting gardeners
+  // 6. Seed stage observation for resting gardeners
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state !== 'resting' || !gardener.locationId) continue;
     const locData = state.locations[gardener.locationId];
@@ -201,7 +196,7 @@ function tick(getState, saveState, broadcast) {
     }
   }
 
-  // 8. Energy regen and energyMax sync
+  // 7. Energy regen and energyMax sync
   for (const gardener of Object.values(state.gardeners)) {
     const newMax = computeEnergyMax(gardener, state);
     if (gardener.energyMax !== newMax) {
@@ -215,10 +210,11 @@ function tick(getState, saveState, broadcast) {
     }
   }
 
-  // 9. Rules: refresh cooling slots, evaluate completion, expand new slots
+  // 8. Rules: refresh cooling slots, evaluate completion/expiry
   for (const [deviceId, gardener] of Object.entries(state.gardeners)) {
     if (!gardener.rules) continue;
 
+    // Refresh cooling slots
     for (let i = 0; i < gardener.rules.length; i++) {
       const rule = gardener.rules[i];
       if (rule.deletedTick !== null && state.tick >= rule.refreshAt) {
@@ -228,25 +224,54 @@ function tick(getState, saveState, broadcast) {
     }
 
     const uniqueVisited = [...new Set(gardener.record.wanderings)];
+
     for (const rule of gardener.rules) {
-      if (rule.deletedTick !== null || rule.completed) continue;
+      if (rule.deletedTick !== null) continue;
+
+      // Skip while in safe period
+      if (rule.safeUntil !== null && rule.safeUntil > state.tick) continue;
+
       const template = RULE_TEMPLATE_MAP[rule.templateId];
       if (!template) continue;
+
       let count = 0;
       for (const locId of uniqueVisited) {
         const locData = state.locations[locId];
-        if (locData && template.check(locData.pots)) count++;
+        if (locData && template.check(locData.pots, state.tick)) count++;
       }
-      if (count >= rule.difficulty) {
+
+      const wasCompleted = rule.completed;
+      const nowCompleted = count >= rule.difficulty;
+
+      if (nowCompleted && !wasCompleted) {
         rule.completed = true;
+        rule.safeUntil = state.tick + RULE_SAFE_TIME;
         gardener.speedBonus = Math.round((gardener.speedBonus ?? 1) * 1.02 * 1000) / 1000;
+
+        // If this completes the last active rule, extend all safe times
+        const activeRules = gardener.rules.filter(r => r.deletedTick === null);
+        if (activeRules.every(r => r.completed)) {
+          for (const r of activeRules) r.safeUntil = state.tick + RULE_SAFE_TIME * 3;
+        }
+
         notifySet.add(deviceId);
+        changed = true;
+      } else if (!nowCompleted && wasCompleted) {
+        // Safe period expired and conditions no longer met — un-complete
+        rule.completed = false;
+        rule.safeUntil = null;
+        gardener.speedBonus = Math.round((gardener.speedBonus ?? 1) / 1.02 * 1000) / 1000;
+        notifySet.add(deviceId);
+        changed = true;
+      } else if (nowCompleted && wasCompleted) {
+        // Renew safe period
+        rule.safeUntil = state.tick + RULE_SAFE_TIME;
         changed = true;
       }
     }
   }
 
-  // 10. Sleep check
+  // 9. Sleep check
   for (const gardener of Object.values(state.gardeners)) {
     if (gardener.state === 'resting' && gardener.lastActiveTick + SLEEP_THRESHOLD < state.tick) {
       gardener.state = 'sleeping';
@@ -254,9 +279,9 @@ function tick(getState, saveState, broadcast) {
     }
   }
 
-  // 11. Save if changed
+  // 10. Save if changed
   if (changed) saveState(state);
 
-  // 12. Push updated view — walking clients only notified on meaningful events
+  // 11. Push updated view — walking clients only notified on meaningful events
   broadcast(notifySet);
 }

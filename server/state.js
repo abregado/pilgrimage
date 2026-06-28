@@ -1,6 +1,12 @@
 import { SEEDS, SEED_MAP } from './seeds.js';
 import { LOCATIONS, LOCATION_MAP, PATH_MAP } from './world.js';
-import { MOVEMENT_SPEED, BASE_ENERGY_MAX, GROWN_TICKS, SPEED_BONUS_PER_RULE } from './constants.js';
+import {
+  MOVEMENT_SPEED, BASE_ENERGY_MAX,
+  ENERGY_BONUS_TIME, ENERGY_BONUS_EXPLORE, ENERGY_BONUS_RULE,
+  ENERGY_REGEN_TICKS,
+  GROWN_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
+  INITIAL_RULE_SLOTS,
+} from './constants.js';
 import { RULE_TEMPLATE_MAP } from './rules.js';
 
 let _state = null;
@@ -8,7 +14,6 @@ let _state = null;
 function makeFreshLocations() {
   const locations = {};
   for (const loc of LOCATIONS) {
-    const originSeed = SEEDS.find(s => s.locationId === loc.id);
     const pots = [];
     for (let i = 0; i < loc.potCount; i++) {
       pots.push({
@@ -24,17 +29,17 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 13;
+const CURRENT_VERSION = 14;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
   const age = state.tick - gardener.createdTick;
-  if (age >= 86400)  max += 1; // 1 day
-  if (age >= 604800) max += 1; // 1 week
-  const allLocIds = new Set(LOCATIONS.map(l => l.id));
-  if ([...allLocIds].every(id => gardener.record.wanderings.includes(id))) max += 1;
+  if (age >= 86400)  max += ENERGY_BONUS_TIME;  // 1 day
+  if (age >= 604800) max += ENERGY_BONUS_TIME;  // 1 week
+  const allLocIds = LOCATIONS.map(l => l.id);
+  if (allLocIds.every(id => gardener.record.wanderings.includes(id))) max += ENERGY_BONUS_EXPLORE;
   if (gardener.rules) {
-    max += gardener.rules.filter(r => r.completed && r.deletedTick === null).length;
+    max += gardener.rules.filter(r => r.completed && r.deletedTick === null).length * ENERGY_BONUS_RULE;
   }
   return max;
 }
@@ -71,6 +76,21 @@ function migrate(loaded) {
     loaded.version = 11;
   }
 
+  if (v === 11 || v === 12 || v === 13) {
+    console.log(`Migrating v${v} → v14: energy overhaul, remove tending state, add rule safeUntil`);
+    for (const gardener of Object.values(loaded.gardeners)) {
+      if (gardener.state === 'tending') gardener.state = 'resting';
+      delete gardener.tendingUntil;
+      if (gardener.rules) {
+        for (const rule of gardener.rules) {
+          if (rule.safeUntil === undefined) rule.safeUntil = null;
+        }
+      }
+    }
+    v = 14;
+    loaded.version = 14;
+  }
+
   if (v !== CURRENT_VERSION) {
     console.log(`State version ${v} → ${CURRENT_VERSION}: rebuilding fresh state`);
     return null;
@@ -95,7 +115,6 @@ export function getState() {
   return _state;
 }
 
-
 export function getGardenerView(deviceId) {
   if (!_state) return null;
   const gardener = _state.gardeners[deviceId];
@@ -108,7 +127,6 @@ export function getGardenerView(deviceId) {
   if (gardener.locationId) {
     const locData = _state.locations[gardener.locationId];
     const locMeta = LOCATION_MAP[gardener.locationId];
-    // Other gardeners at this location
     const otherGardeners = [];
     for (const [dId, g] of Object.entries(_state.gardeners)) {
       if (dId !== deviceId && g.locationId === gardener.locationId && g.state !== 'sleeping') {
@@ -129,7 +147,6 @@ export function getGardenerView(deviceId) {
       };
     });
 
-    // Build seedPool: origin seed + planted seeds + your carried seed + seeds carried by others here
     const originSeed = SEEDS.find(s => s.locationId === gardener.locationId);
     const poolSet = new Set();
     if (originSeed) poolSet.add(originSeed.id);
@@ -142,7 +159,7 @@ export function getGardenerView(deviceId) {
     }
     for (const [dId, g] of Object.entries(_state.gardeners)) {
       if (dId !== deviceId && g.locationId === gardener.locationId &&
-          (g.state === 'resting' || g.state === 'tending') && g.seed) {
+          g.state === 'resting' && g.seed) {
         poolSet.add(g.seed);
       }
     }
@@ -195,10 +212,9 @@ export function getGardenerView(deviceId) {
 
   // Build record data
   const record = gardener.record;
-  // Build garden: top 3 pots where iDecorated and still a decorator
   const gardenPots = [];
   for (const potId of record.decoratedPots) {
-    for (const [locId, locData] of Object.entries(_state.locations)) {
+    for (const locData of Object.values(_state.locations)) {
       const pot = locData.pots.find(p => p.id === potId);
       if (pot && pot.decorators.includes(gardener.id) && pot.seedId) {
         gardenPots.push({
@@ -212,9 +228,14 @@ export function getGardenerView(deviceId) {
   gardenPots.sort((a, b) => b.otherDecoratorCount - a.otherDecoratorCount);
   const garden = gardenPots.slice(0, 3);
 
-  // Sync energyMax in case milestones changed, then clamp energy
+  // Sync energyMax and clamp energy
   gardener.energyMax = computeEnergyMax(gardener, _state);
   if (gardener.energy > gardener.energyMax) gardener.energy = gardener.energyMax;
+
+  // Next energy regen tick (null if already full)
+  const energyFull = gardener.energy >= gardener.energyMax;
+  const energyRegenAt = energyFull ? null
+    : (Math.floor(tick / ENERGY_REGEN_TICKS) + 1) * ENERGY_REGEN_TICKS;
 
   // Build rules view
   const uniqueVisited = [...new Set(gardener.record.wanderings)];
@@ -229,7 +250,7 @@ export function getGardenerView(deviceId) {
     if (template) {
       for (const locId of uniqueVisited) {
         const locData = _state.locations[locId];
-        if (locData && template.check(locData.pots)) {
+        if (locData && template.check(locData.pots, tick)) {
           satisfiedCount++;
           if (locId === currentLocId) satisfiedHere = true;
         }
@@ -242,12 +263,19 @@ export function getGardenerView(deviceId) {
       description: rule.description,
       difficulty: rule.difficulty,
       completed: rule.completed,
+      safeUntil: rule.safeUntil ?? null,
       satisfiedCount,
       satisfiedHere,
       refreshing: false,
       refreshAt: null,
     };
   });
+
+  // Speed bonus from completed rules + full-vision bonus
+  const activeRules = (gardener.rules || []).filter(r => r.deletedTick === null);
+  const completedCount = activeRules.filter(r => r.completed).length;
+  const fullVisionBonus = completedCount === INITIAL_RULE_SLOTS ? SPEED_BONUS_FULL_VISION : 0;
+  const rulesSpeedBonus = completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus;
 
   return {
     gardener: {
@@ -258,11 +286,11 @@ export function getGardenerView(deviceId) {
       pathFrom: gardener.pathFrom,
       progress: gardener.progress,
       seed: gardener.seed,
-      tendingUntil: gardener.tendingUntil,
       createdTick: gardener.createdTick,
       lastActiveTick: gardener.lastActiveTick,
       energy: gardener.energy,
       energyMax: gardener.energyMax,
+      energyRegenAt,
       speedBonus: gardener.speedBonus ?? 1,
       rules: rulesView,
       availableSeeds: gardener.availableSeeds ?? null,
@@ -280,6 +308,6 @@ export function getGardenerView(deviceId) {
     },
     tick,
     movementSpeed: MOVEMENT_SPEED,
-    rulesSpeedBonus: (gardener.rules || []).filter(r => r.completed && r.deletedTick === null).length * SPEED_BONUS_PER_RULE,
+    rulesSpeedBonus,
   };
 }

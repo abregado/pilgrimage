@@ -15,7 +15,7 @@ Shown when `_screen === 'connect'` (i.e. `_state === null`).
 
 ## location.js — `renderLocation(app)`
 
-Shown when `_screen === 'location'` (covers `resting`, `tending`, `sleeping`, **and `walking`** states).
+Shown when `_screen === 'location'` (covers `resting`, `arriving`, **and `walking`** states).
 
 Contains a tab bar (Location / Map / Record). The `_tab` variable controls which sub-view renders. All three tabs are accessible while walking.
 
@@ -23,24 +23,26 @@ Contains a tab bar (Location / Map / Record). The `_tab` variable controls which
 
 When `gardener.state === 'walking'` the Location tab shows the travel view:
 
-1. **Header** — "Travelling to {destination}".
-2. **SVG travel path** — curvy dotted brown line with X endpoints; a meeple (head circle + upward triangle body + direction arrow) animates smoothly along the curve. The SVG has `id="travel-path-svg"` and the meeple group has `id="travel-meeple"`. The `startTravelAnim(path, speed, speedBonus, rulesSpeedBonus)` exported function drives a `requestAnimationFrame` loop that updates the meeple transform and the `id="travel-eta"` ETA div without re-rendering the screen.
-3. **Seed picker** — nursery-style 64px buttons with "Which seed do you wish to carry with you into {destination}?" prompt.
-4. **Reverse Direction** button.
-5. **Encounters list** with "Take Seed" buttons.
+1. **Header** — "Travelling to {destination}" + energy pips with regen countdown.
+2. **SVG travel path** — curvy dotted brown line with X endpoints; a meeple animates smoothly along the curve. The SVG has `id="travel-path-svg"` and the meeple group has `id="travel-meeple"`. The `startTravelAnim(path, speed, speedBonus, rulesSpeedBonus)` exported function drives a `requestAnimationFrame` loop that updates the meeple transform and the `id="travel-eta"` ETA div without re-rendering the screen.
+3. **Reverse Direction** button.
+4. **Encounters list** with "Take Seed" buttons.
 
-### Tab: Location — resting/tending state
+Note: the seed picker is **not shown** during travel. Seed selection happens on the embarkation screen before walking.
+
+### Tab: Location — resting/arriving state
 
 Sections rendered in order:
 
-1. **Population row** — meeple icons for all gardeners at this location.
-2. **Header** — location name + energy pips.
-3. **Tending status** — if `gardener.state === 'tending'`, shows countdown.
-4. **Pots wheel** — circular layout (84×84px squares, 50% larger than old 56px circles). Selecting a pot reveals the centre panel with plant info and action buttons. Each occupied pot shows the plant image (square, uncropped) with a 32px seed SVG icon overlaid at the bottom centre (`class="pot-seed-overlay"`). Decorations (`.dec-dot`) only visible on the selected pot. Selected pot gets a yellow bottom border; its seed overlay gets a yellow outline. Action buttons show tending duration: `Plant Mirewort (20m)`, `Clear (5h)`.
-5. **Nursery** — seed grid; clicking selects a seed for planting.
-6. **Vision** — active rules as cards.
-7. **Travel** — paths to adjacent locations with visited-destination symbol + pot memory strip.
-8. **Other gardeners here** — meeple + seed icon row.
+1. **Top bar** — meeple icons + location name + energy pips with regen countdown (`+1 in Xm`).
+2. **Pots wheel** — circular layout (84×84px squares). Selecting a pot reveals the centre panel with plant info and action buttons. Each occupied pot shows the plant image with a 32px seed SVG icon overlaid. Action buttons show energy cost: `Plant Mirewort (3 energy)`, `Clear (8 energy)`. Buttons are disabled if energy is insufficient.
+3. **Nursery** — seed grid; clicking selects a seed for planting.
+4. **Vision** — active rules as cards. Completed rules show a safe-period badge: `Safe Xh Ym`.
+5. **Travel** — paths to adjacent locations with visited-destination symbol + pot memory strip.
+
+### Embarkation picker
+
+When `embarkingPathId` is set (after clicking Walk from the Travel section), a seed picker replaces the normal content. The player picks which seed to carry using `select_embark_seed`. Confirms with `embark`.
 
 ### Tab: Map / Record
 
@@ -54,11 +56,12 @@ Shown when `_screen === 'arrival'` (gardener is `arriving`).
 
 - Location name.
 - **Core seed icon** — 96px SVG icon of the location's home seed, always shown.
-- **Seed picker** — nursery-style with "Which seed do you wish to carry with you into {name}?" prompt.
 - Encounters on the journey with "Take Seed" buttons.
 - **Journey log** — locations visited this session (from `getJourneyLog()`).
 - **Ahead** — queued future destinations derived from `gardener.travelQueue`.
 - "Continue to {location}" button.
+
+Note: no seed picker on this screen. Seed selection happens on the embarkation screen before departure.
 
 ---
 
@@ -81,8 +84,9 @@ Called from `renderLocation` when tab is 'map'. Not a standalone screen. Accessi
 
 Rendered within the location screen's Record tab.
 
-- Age, speed bonus.
-- Energy milestones.
+- Age, speed bonus (with note about +100% full-vision bonus).
+- Energy milestones: Day one (+3), One week (+3), Explorer (+5), per completed rule (+5 each).
+- Vision list: completed rules show safe-period badge `Safe Xh Ym`.
 - Wanderings log.
 - Seed log table (15 seeds × 5 stages).
 - Garden (top 3 most-decorated active pots).

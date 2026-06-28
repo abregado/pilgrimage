@@ -36,26 +36,6 @@ export function renderArrival(app) {
       </div>`;
   }
 
-  // Seed picker — nursery style with prompt
-  if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
-    html += `<div class="section" style="text-align:left">
-      <p class="seed-carry-prompt">Which seed do you wish to carry with you into ${arrival.locationName}?</p>
-      <div class="nursery-grid">`;
-    for (const seedId of gardener.availableSeeds) {
-      const seed = SEED_MAP[seedId];
-      const color = seed ? seed.color : '#666';
-      const isSelected = gardener.seed === seedId;
-      html += `
-        <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
-          data-action="pick_seed" data-seed-id="${seedId}"
-          ${isSelected ? 'disabled' : ''}>
-          ${seedIcon(seedId)}
-          <span class="nursery-seed-name" style="color:${color}">${seed ? seed.name : seedId}</span>
-        </button>`;
-    }
-    html += `</div></div>`;
-  }
-
   // Encounters
   if (arrival.encounters && arrival.encounters.length > 0) {
     html += `<div class="section" style="text-align:left"><h3>On your journey</h3><div class="encounter-list">`;

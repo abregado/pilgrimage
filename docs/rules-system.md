@@ -6,10 +6,21 @@
 
 - Each gardener holds 4 **rule slots** (always 4; `ruleSlots` field unused beyond this).
 - Each slot contains a **rule instance** referencing a **template**.
-- A rule is satisfied at a location when `template.check(pots)` returns true.
-- A rule is **completed** when `satisfiedCount >= difficulty` (checked every tick against unique visited locations).
-- Completing a rule multiplies `speedBonus × 1.02`.
-- A completed rule can be **deleted** (refreshed): slot cools for 60 ticks, then gets a new rule of the same level. Deleting a completed rule divides `speedBonus / 1.02`.
+- A rule is satisfied at a location when `template.check(pots, tick)` returns true.
+  - **L1 checks**: any growth stage counts.
+  - **L2 checks**: only pots with plant age `>= SEEDLING_TICKS` (30 min) count.
+  - **L3 checks**: only pots with plant age `>= GROWN_TICKS` (6 h) count.
+- A rule is **completed** when `satisfiedCount >= difficulty` (checked every tick against unique visited locations, unless in safe period).
+- Completing a rule:
+  - Sets `speedBonus × 1.02`.
+  - Sets `safeUntil = tick + RULE_SAFE_TIME` (24 h).
+  - If all active rules are now complete: sets `safeUntil = tick + RULE_SAFE_TIME * 3` (72 h) for all.
+- A completed rule can be **deleted** (refreshed): slot cools for 60 ticks, then gets a new rule of the same level. Deleting reduces `speedBonus / 1.02`.
+- After the safe period, a rule is re-evaluated. If conditions are no longer met, `completed` reverts to false and `speedBonus / 1.02`.
+
+### No-duplicate-seed constraint
+
+When generating rules (initial or refresh), no seedId may appear in more than one active rule simultaneously.
 
 ---
 
@@ -17,12 +28,12 @@
 
 ```js
 {
-  id: string,         // unique string key
+  id: string,          // unique string key
   level: 1|2|3,
-  difficulty: number, // target satisfied location count
+  difficulty: number,  // target satisfied location count
   description: string,
-  seeds: string[],    // seedIds involved (used for biased initial assignment)
-  check: (pots) => boolean
+  seeds: string[],     // seedIds involved (used for biased assignment and no-duplicate check)
+  check: (pots, tick) => boolean
 }
 ```
 
@@ -34,7 +45,7 @@
 
 `{seedId}_present`
 
-`check`: any pot has `seedId`.
+`check`: any pot has `seedId` (any growth stage).
 
 15 templates (one per seed).
 
@@ -44,7 +55,7 @@
 
 `{a}_{b}_copresent`
 
-`check`: at least one pot has `a` AND at least one has `b`.
+`check`: at least one pot has `a` at SEEDLING+ AND at least one has `b` at SEEDLING+.
 
 15 templates (one per adjacent pair).
 
@@ -54,7 +65,7 @@
 
 `{a}_{b}_adjacent`
 
-`check`: two consecutive pots (wrapping) hold `a` and `b` in either order.
+`check`: two consecutive pots (wrapping) hold `a` and `b` in either order, both at SEEDLING+.
 
 15 templates.
 
@@ -64,7 +75,7 @@
 
 `{seedId}_next_empty`
 
-`check`: a pot with `seedId` has at least one empty neighbour (prev or next, wrapping).
+`check`: a pot with `seedId` at SEEDLING+ has at least one empty neighbour (prev or next, wrapping).
 
 15 templates.
 
@@ -72,8 +83,8 @@
 
 ### Level 3a — Sandwich (difficulty 3)
 
-`{b}_sandwiches_{a}` — check: both neighbours of some `a` pot are `b`.  
-`{a}_sandwiches_{b}` — check: both neighbours of some `b` pot are `a`.
+`{b}_sandwiches_{a}` — check: both neighbours of some `a` pot (GROWN+) are `b` (GROWN+).  
+`{a}_sandwiches_{b}` — check: both neighbours of some `b` pot (GROWN+) are `a` (GROWN+).
 
 30 templates (2 per pair).
 
@@ -83,7 +94,7 @@
 
 `{seedId}_triple`
 
-`check`: seed appears in 3 or more pots.
+`check`: seed appears GROWN+ in 3 or more pots.
 
 15 templates.
 
@@ -91,20 +102,20 @@
 
 ## Initial rule assignment (`pickInitialRules(originSeedId)`)
 
-Picks 4 rules biased toward the gardener's origin seed:
+Picks 4 rules biased toward the gardener's origin seed, with no seed appearing twice:
 
 1. L1 matching origin seed
-2. L1 any (avoids already-picked)
-3. L2 matching origin seed
-4. L3 matching origin seed
+2. L1 any (avoids already-used seeds)
+3. L2 matching origin seed (avoids already-used seeds)
+4. L3 matching origin seed (avoids already-used seeds)
 
-Falls back to any unused template at the required level if no seed-matching one is available.
+Falls back to any unused, non-overlapping template at the required level if no seed-matching one is available.
 
 ---
 
 ## Refresh (`pickNewRuleForLevel(level, existingRules)`)
 
-Picks a random unused template at the given level (avoiding all templates currently in the gardener's slots, including refreshing slots).
+Picks a random unused template at the given level, avoiding all templates currently in the gardener's slots (including refreshing slots) and templates whose seeds overlap with any active rule's seeds.
 
 ---
 

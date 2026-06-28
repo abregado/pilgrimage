@@ -1,3 +1,5 @@
+import { SEEDLING_TICKS, GROWN_TICKS } from './constants.js';
+
 const SEED_NAMES = {
   velour_bloom:   'Velour Bloom',
   cinder_fern:    'Cinder Fern',
@@ -37,12 +39,19 @@ const PAIRS = [
   ['murmuring_sage','velour_bloom'],
 ];
 
+// L2 checks: plants must be at least SEEDLING
+// L3 checks: plants must be at least GROWN
+function plantAge(pot, tick) {
+  return pot.lastPlantedTick !== null ? tick - pot.lastPlantedTick : -1;
+}
+
 function adjCheck(seedA, seedB) {
-  return (pots) => {
+  return (pots, tick) => {
     for (let i = 0; i < pots.length; i++) {
       const j = (i + 1) % pots.length;
-      const a = pots[i].seedId;
-      const b = pots[j].seedId;
+      const pi = pots[i]; const pj = pots[j];
+      if (plantAge(pi, tick) < SEEDLING_TICKS || plantAge(pj, tick) < SEEDLING_TICKS) continue;
+      const a = pi.seedId; const b = pj.seedId;
       if ((a === seedA && b === seedB) || (a === seedB && b === seedA)) return true;
     }
     return false;
@@ -50,26 +59,29 @@ function adjCheck(seedA, seedB) {
 }
 
 function nextToEmptyCheck(seedId) {
-  return (pots) => {
+  return (pots, tick) => {
     for (let i = 0; i < pots.length; i++) {
-      if (pots[i].seedId === seedId) {
-        const prev = pots[(i - 1 + pots.length) % pots.length];
-        const next = pots[(i + 1) % pots.length];
-        if (!prev.seedId || !next.seedId) return true;
-      }
+      if (pots[i].seedId !== seedId) continue;
+      if (plantAge(pots[i], tick) < SEEDLING_TICKS) continue;
+      const prev = pots[(i - 1 + pots.length) % pots.length];
+      const next = pots[(i + 1) % pots.length];
+      if (!prev.seedId || !next.seedId) return true;
     }
     return false;
   };
 }
 
-// seedA is flanked by two seedB neighbours
+// seedA is flanked by two seedB neighbours; both plants must be GROWN+
 function sandwichCheck(seedA, seedB) {
-  return (pots) => {
+  return (pots, tick) => {
     for (let i = 0; i < pots.length; i++) {
-      if (pots[i].seedId === seedA) {
-        const prev = pots[(i - 1 + pots.length) % pots.length];
-        const next = pots[(i + 1) % pots.length];
-        if (prev.seedId === seedB && next.seedId === seedB) return true;
+      if (pots[i].seedId !== seedA) continue;
+      if (plantAge(pots[i], tick) < GROWN_TICKS) continue;
+      const prev = pots[(i - 1 + pots.length) % pots.length];
+      const next = pots[(i + 1) % pots.length];
+      if (prev.seedId === seedB && next.seedId === seedB &&
+          plantAge(prev, tick) >= GROWN_TICKS && plantAge(next, tick) >= GROWN_TICKS) {
+        return true;
       }
     }
     return false;
@@ -94,18 +106,20 @@ for (const seedId of ALL_SEEDS) {
   ));
 }
 
-// ── Level 2a: co-presence pairs (find 6 locations) ───────────────────────────
+// ── Level 2a: co-presence pairs (find 6 locations; both must be SEEDLING+) ──
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_copresent`,
     2, 6,
     `6 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} both planted`,
     [a, b],
-    (p) => p.some(x => x.seedId === a) && p.some(x => x.seedId === b),
+    (p, tick) =>
+      p.some(x => x.seedId === a && plantAge(x, tick) >= SEEDLING_TICKS) &&
+      p.some(x => x.seedId === b && plantAge(x, tick) >= SEEDLING_TICKS),
   ));
 }
 
-// ── Level 2b: adjacent pairs (find 3 locations) ───────────────────────────────
+// ── Level 2b: adjacent pairs (find 3 locations; both must be SEEDLING+) ──────
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${a}_${b}_adjacent`,
@@ -116,7 +130,7 @@ for (const [a, b] of PAIRS) {
   ));
 }
 
-// ── Level 2c: next to an empty pot (find 8 locations) ────────────────────────
+// ── Level 2c: next to an empty pot (find 8 locations; plant must be SEEDLING+)
 for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_next_empty`,
@@ -127,8 +141,7 @@ for (const seedId of ALL_SEEDS) {
   ));
 }
 
-// ── Level 3a: sandwich — seedA flanked by two seedB (find 3 locations) ────────
-// Both directions so every seed can appear as "the centre"
+// ── Level 3a: sandwich — seedA flanked by two seedB (find 3; all GROWN+) ─────
 for (const [a, b] of PAIRS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${b}_sandwiches_${a}`,
@@ -146,14 +159,14 @@ for (const [a, b] of PAIRS) {
   ));
 }
 
-// ── Level 3b: triple planting (find 6 locations) ─────────────────────────────
+// ── Level 3b: triple planting (find 6 locations; all three must be GROWN+) ───
 for (const seedId of ALL_SEEDS) {
   RULE_TEMPLATES.push(makeTemplate(
     `${seedId}_triple`,
     3, 6,
     `6 locations in the world have ${SEED_NAMES[seedId]} planted at least 3 times`,
     [seedId],
-    (p) => p.filter(x => x.seedId === seedId).length >= 3,
+    (p, tick) => p.filter(x => x.seedId === seedId && plantAge(x, tick) >= GROWN_TICKS).length >= 3,
   ));
 }
 
@@ -169,20 +182,36 @@ function makeRuleInstance(template) {
     difficulty:  template.difficulty,
     description: template.description,
     completed:   false,
+    safeUntil:   null,
     deletedTick: null,
     refreshAt:   null,
   };
 }
 
-function pickFromLevel(level, preferSeedId, usedTemplateIds) {
+// Seeds already claimed by a set of templates
+function usedSeedsFromTemplates(templateIds) {
+  const seeds = new Set();
+  for (const id of templateIds) {
+    const t = RULE_TEMPLATE_MAP[id];
+    if (t) for (const s of t.seeds) seeds.add(s);
+  }
+  return seeds;
+}
+
+function pickFromLevel(level, preferSeedId, usedTemplateIds, usedSeedIds) {
+  const noOverlap = t => !t.seeds.some(s => usedSeedIds.has(s));
+
   let candidates = RULE_TEMPLATES.filter(t =>
     t.level === level &&
     !usedTemplateIds.has(t.id) &&
+    noOverlap(t) &&
     (preferSeedId ? t.seeds.includes(preferSeedId) : true),
   );
-  // Fallback: any unused template at this level
+  // Fallback: any unused template at this level without seed overlap
   if (!candidates.length && preferSeedId) {
-    candidates = RULE_TEMPLATES.filter(t => t.level === level && !usedTemplateIds.has(t.id));
+    candidates = RULE_TEMPLATES.filter(t =>
+      t.level === level && !usedTemplateIds.has(t.id) && noOverlap(t),
+    );
   }
   if (!candidates.length) return null;
   const t = candidates[Math.floor(Math.random() * candidates.length)];
@@ -193,30 +222,34 @@ function pickFromLevel(level, preferSeedId, usedTemplateIds) {
 // Build the 4 starting rules (2×L1, 1×L2, 1×L3) biased toward originSeedId
 export function pickInitialRules(originSeedId) {
   const rules = [];
-  const used = new Set();
+  const usedTemplateIds = new Set();
+  const usedSeedIds = new Set();
 
-  const l1a = pickFromLevel(1, originSeedId, used);
-  if (l1a) rules.push(l1a);
+  function push(rule) {
+    if (!rule) return;
+    rules.push(rule);
+    for (const s of RULE_TEMPLATE_MAP[rule.templateId]?.seeds ?? []) usedSeedIds.add(s);
+  }
 
-  // Second L1: prefer origin seed again (will pick a different type if L1 for origin exhausted)
-  const l1b = pickFromLevel(1, null, used);
-  if (l1b) rules.push(l1b);
-
-  const l2 = pickFromLevel(2, originSeedId, used);
-  if (l2) rules.push(l2);
-
-  const l3 = pickFromLevel(3, originSeedId, used);
-  if (l3) rules.push(l3);
+  push(pickFromLevel(1, originSeedId, usedTemplateIds, usedSeedIds));
+  push(pickFromLevel(1, null,         usedTemplateIds, usedSeedIds));
+  push(pickFromLevel(2, originSeedId, usedTemplateIds, usedSeedIds));
+  push(pickFromLevel(3, originSeedId, usedTemplateIds, usedSeedIds));
 
   return rules;
 }
 
 // Pick a replacement rule at the same level (for refresh)
 export function pickNewRuleForLevel(level, existingRules = []) {
-  const usedIds = new Set(
-    existingRules.filter(r => r.deletedTick === null).map(r => r.templateId),
+  const active = existingRules.filter(r => r.deletedTick === null);
+  const usedTemplateIds = new Set(active.map(r => r.templateId));
+  const usedSeedIds = usedSeedsFromTemplates(usedTemplateIds);
+
+  const candidates = RULE_TEMPLATES.filter(t =>
+    t.level === level &&
+    !usedTemplateIds.has(t.id) &&
+    !t.seeds.some(s => usedSeedIds.has(s)),
   );
-  const candidates = RULE_TEMPLATES.filter(t => t.level === level && !usedIds.has(t.id));
   if (!candidates.length) return null;
   const t = candidates[Math.floor(Math.random() * candidates.length)];
   return makeRuleInstance(t);

@@ -3,6 +3,9 @@ import { LOCATIONS } from '../world.js';
 import { formatAge, formatDuration } from '../utils.js';
 import { isMusicEnabled } from '../audio.js';
 
+// Keep in sync with server/constants.js
+const RULE_SAFE_TIME = 86400;
+
 function seedIcon(seedId, small) {
   if (!seedId) return `<div class="seed-icon" style="background:#222;width:${small?24:32}px;height:${small?24:32}px;border-radius:4px"></div>`;
   const seed = SEED_MAP[seedId];
@@ -22,6 +25,7 @@ export function renderRecord(container, state) {
   }
 
   const { record, gardener, tick, rulesSpeedBonus } = state;
+  const currentTick = tick;
   if (!record) {
     container.innerHTML = `<p class="muted center">No record yet</p>`;
     return;
@@ -45,9 +49,9 @@ export function renderRecord(container, state) {
   const rules = gardener?.rules || [];
   const completedRules = rules.filter(r => r.completed && !r.refreshing);
   const milestones = [
-    { label: 'Day one',     met: record.ageTicks >= 86400 },
-    { label: 'One week',    met: record.ageTicks >= 604800 },
-    { label: 'Explorer',    met: LOCATIONS.every(l => record.wanderings.includes(l.id)) },
+    { label: 'Day one',     met: record.ageTicks >= 86400,  bonus: '+3 max energy' },
+    { label: 'One week',    met: record.ageTicks >= 604800, bonus: '+3 max energy' },
+    { label: 'Explorer',    met: LOCATIONS.every(l => record.wanderings.includes(l.id)), bonus: '+5 max energy' },
   ];
   html += `
     <div class="section">
@@ -60,14 +64,14 @@ export function renderRecord(container, state) {
     html += `<div class="milestone-row${m.met ? ' met' : ''}">
       <span class="milestone-pip">${m.met ? '✓' : '·'}</span>
       <span class="milestone-label">${m.label}</span>
-      <span class="milestone-bonus">+1 max energy</span>
+      <span class="milestone-bonus">${m.bonus}</span>
     </div>`;
   }
   if (completedRules.length > 0) {
     html += `<div class="milestone-row met">
       <span class="milestone-pip">✓</span>
       <span class="milestone-label">${completedRules.length} vision${completedRules.length !== 1 ? 's' : ''} complete</span>
-      <span class="milestone-bonus">+${completedRules.length} max energy</span>
+      <span class="milestone-bonus">+${completedRules.length * 5} max energy</span>
     </div>`;
   }
   html += `</div></div>`;
@@ -80,9 +84,14 @@ export function renderRecord(container, state) {
     html += `<div class="vision-list">`;
     for (const rule of rules) {
       if (rule.refreshing) {
-        const wait = Math.max(0, rule.refreshAt - tick);
+        const wait = Math.max(0, rule.refreshAt - currentTick);
         html += `<div class="vision-card refreshing"><span class="vision-refresh">New vision in ${formatDuration(wait)}</span></div>`;
       } else {
+        let safeTag = '';
+        if (rule.completed && rule.safeUntil !== null && rule.safeUntil > currentTick) {
+          const safeRemaining = Math.max(0, rule.safeUntil - currentTick);
+          safeTag = `<span class="vision-safe">Safe ${formatDuration(safeRemaining)}</span>`;
+        }
         html += `
           <div class="vision-card${rule.completed ? ' completed' : ''}">
             <div class="vision-desc">${rule.description}</div>
@@ -91,6 +100,7 @@ export function renderRecord(container, state) {
               ${rule.completed
                 ? `<span class="vision-badge">Complete</span>`
                 : `<button class="btn btn-sm btn-muted" data-action="delete_rule" data-rule-id="${rule.id}">Dismiss</button>`}
+              ${safeTag}
             </div>
           </div>`;
       }
@@ -108,7 +118,7 @@ export function renderRecord(container, state) {
         <div class="stat-label">Vision bonus</div>
         <div class="stat-value speed-bonus-value">+${bonusPct}%</div>
       </div>
-      <p class="record-speed-hint">Complete more of your Vision to move faster across the world. Each completed vision adds +10% movement speed.</p>
+      <p class="record-speed-hint">Each completed vision adds +10% movement speed. Complete all four visions at once for an additional +100% bonus.</p>
     </div>`;
 
   // Seed log — vertical list with stage checkboxes

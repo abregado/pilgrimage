@@ -8,12 +8,12 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
 
 ```js
 {
-  version: 10,          // integer; migration key
-  tick: number,         // monotonically increasing, 1 per second
-  gardeners: {          // keyed by deviceId (UUID string)
+  version: 14,         // integer; migration key
+  tick: number,        // monotonically increasing, 1 per second
+  gardeners: {         // keyed by deviceId (UUID string)
     [deviceId]: Gardener
   },
-  locations: {          // keyed by locationId
+  locations: {         // keyed by locationId
     [locationId]: LocationData
   }
 }
@@ -26,20 +26,19 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
 ```js
 {
   id: string,               // 4-byte hex public id, shown to other players
-  state: 'resting' | 'tending' | 'walking' | 'arriving' | 'sleeping',
+  state: 'resting' | 'walking' | 'arriving' | 'sleeping',
   locationId: string|null,  // null while walking
   pathId: string|null,
   pathFrom: string|null,    // which end of the path they started from
   progress: number,         // meters walked along current path
   seed: string|null,        // currently carried seedId
-  tendingUntil: number|null,// tick when tending completes
   encounteredThisTrip: [{id, seed}],
   arrivedEncounters: [{id, seed}]|null,
   createdTick: number,
   lastActiveTick: number,
   energy: number,
   energyMax: number,        // computed; stored for caching
-  speedBonus: number,       // multiplier, starts 1.0; +2% per completed vision
+  speedBonus: number,       // multiplier, starts 1.0; ×1.02 per completed rule
   rules: Rule[],
   ruleSlots: number,        // always 4
   availableSeeds: string[]|null,  // populated on walk, cleared on continue
@@ -56,13 +55,13 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
 }
 ```
 
-### energyMax milestones (computed)
+### energyMax milestones (computed in `computeEnergyMax`)
 
-- Base: 3
-- +1 after 1 day (`age >= 86400` ticks)
-- +1 after 1 week (`age >= 604800` ticks)
-- +1 if all 15 locations visited
-- +1 per completed, non-deleted vision rule
+- Base: 10
+- +3 after 1 day (`age >= 86400` ticks)
+- +3 after 1 week (`age >= 604800` ticks)
+- +5 if all 15 locations visited
+- +5 per completed, non-deleted vision rule
 
 ---
 
@@ -73,13 +72,20 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
   id: string,           // 4-byte hex instance id
   templateId: string,   // references RULE_TEMPLATE_MAP key
   level: 1|2|3,
-  difficulty: number,   // target satisfiedCount (6, 3, or 8 depending on type)
+  difficulty: number,   // target satisfiedCount
   description: string,
   completed: boolean,
+  safeUntil: number|null,  // tick until which the rule won't be re-evaluated
   deletedTick: number|null,  // non-null means refreshing
   refreshAt: number|null     // tick when slot is replaced
 }
 ```
+
+### safeUntil behaviour
+
+When a rule is first completed: `safeUntil = tick + RULE_SAFE_TIME` (24 h).  
+When the last active rule completes: all active rules get `safeUntil = tick + RULE_SAFE_TIME * 3` (72 h).  
+After `safeUntil` passes, the rule is re-evaluated each tick. If conditions are still met, `safeUntil` renews. If not, the rule becomes incomplete and `speedBonus` is reduced.
 
 ---
 
@@ -113,8 +119,9 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
 {
   gardener: {
     id, state, locationId, pathId, pathFrom, progress,
-    seed, tendingUntil, createdTick, lastActiveTick,
-    energy, energyMax, speedBonus,
+    seed, createdTick, lastActiveTick,
+    energy, energyMax, energyRegenAt,  // energyRegenAt: tick of next regen (null if full)
+    speedBonus,
     rules: RuleView[],
     availableSeeds: string[]|null,
     locationMemory: { [locId]: [{id, seedId}] }
@@ -130,7 +137,7 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
   },
   tick: number,
   movementSpeed: number,
-  rulesSpeedBonus: number   // total fractional bonus from completed rules
+  rulesSpeedBonus: number   // total fractional bonus from rules + full-vision bonus
 }
 ```
 
@@ -150,7 +157,7 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
 }
 ```
 
-seedPool = origin seed + carried seed + grown/fruiting pots + seeds carried by other resting/tending gardeners here.
+seedPool = origin seed + carried seed + grown/fruiting pots + seeds carried by other resting gardeners here.
 
 ### PathView
 
@@ -177,12 +184,14 @@ seedPool = origin seed + carried seed + grown/fruiting pots + seeds carried by o
 ```js
 // Active rule:
 { id, templateId, level, description, difficulty,
-  completed, satisfiedCount, satisfiedHere,
+  completed, safeUntil,
+  satisfiedCount, satisfiedHere,
   refreshing: false, refreshAt: null }
 
 // Refreshing slot:
 { id, refreshing: true, refreshAt: number }
 ```
 
-`satisfiedCount` = number of the gardener's unique visited locations where the rule's check passes.
-`satisfiedHere` = whether it passes at the current location.
+`satisfiedCount` = number of the gardener's unique visited locations where the rule's check passes.  
+`satisfiedHere` = whether it passes at the current location.  
+`safeUntil` = tick until which the completed rule is protected (null if not in safe period).

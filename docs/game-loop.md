@@ -15,10 +15,11 @@ Runs every 1000ms via `setInterval`. Each tick:
 For every `walking` gardener:
 
 ```
-progress += MOVEMENT_SPEED (100) × speedBonus × (1 + completedRules × 0.10)
+progress += MOVEMENT_SPEED (100) × speedBonus × (1 + completedRules × 0.10 + fullVisionBonus)
 ```
 
-`completedRules` = count of non-deleted completed vision rules.
+`completedRules` = count of non-deleted completed vision rules.  
+`fullVisionBonus` = 1.0 if all 4 rule slots are simultaneously completed, otherwise 0.
 
 ---
 
@@ -40,13 +41,7 @@ Two walkers on the same path, heading in **opposite directions**, cross when the
 
 ---
 
-## Step 5 — Tending expiry
-
-`tending` gardeners whose `tendingUntil <= tick` → `resting`, `tendingUntil = null`.
-
----
-
-## Step 6 — Settling expiry + dead-pot cleanup
+## Step 5 — Settling expiry + dead-pot cleanup
 
 - Pots whose `settlingUntil <= tick`: clear `settlingUntil`.
 - Pots whose `age >= DEAD_TICKS (2592000)`:
@@ -55,7 +50,7 @@ Two walkers on the same path, heading in **opposite directions**, cross when the
 
 ---
 
-## Step 7 — Seed stage observation
+## Step 6 — Seed stage observation
 
 For every `resting` gardener at a location: scan all pots. For each pot with a seed, derive its growth stage. If the gardener hasn't seen that stage yet, mark it true in `seedLog[seedId][stage]`.
 
@@ -71,39 +66,51 @@ Growth stage thresholds (age in ticks):
 
 ---
 
-## Step 8 — Energy regen + energyMax sync
+## Step 7 — Energy regen + energyMax sync
 
-- Recompute `energyMax` for every gardener; clamp `energy` if needed.
-- Every `ENERGY_REGEN_TICKS (60)` ticks: `energy += 1` for all under-max gardeners.
+- Recompute `energyMax` for every gardener (using `computeEnergyMax`); clamp `energy` if needed.
+- Every `ENERGY_REGEN_TICKS (1200)` ticks: `energy += 1` for all under-max gardeners.
 
 ---
 
-## Step 9 — Vision (rules)
+## Step 8 — Vision (rules)
+
+For each gardener's active rules (not deleted):
 
 1. **Refresh**: slots where `deletedTick !== null && tick >= refreshAt` → replace with `pickNewRuleForLevel(level, existingRules)`.
-2. **Completion**: for each active, incomplete rule, count how many of the gardener's unique visited locations satisfy `template.check(pots)`. If `count >= difficulty`, mark `completed = true`, apply `speedBonus *= 1.02`.
+2. **Safe-period skip**: rules where `safeUntil !== null && safeUntil > tick` are skipped.
+3. **Evaluate**: count how many of the gardener's unique visited locations satisfy `template.check(pots, tick)`.
+   - `check` now requires plants to be at minimum stage: L2 checks require SEEDLING+, L3 checks require GROWN+.
+4. **Newly completed** (`count >= difficulty && !wasCompleted`):
+   - Set `completed = true`, `safeUntil = tick + RULE_SAFE_TIME` (24 h).
+   - `speedBonus *= 1.02`.
+   - If this completes all active rules: set `safeUntil = tick + RULE_SAFE_TIME * 3` (72 h) for all active rules.
+5. **Un-completed** (`count < difficulty && wasCompleted`):
+   - Safe period expired and conditions no longer met.
+   - Set `completed = false`, `safeUntil = null`, `speedBonus /= 1.02`.
+6. **Renewed** (`count >= difficulty && wasCompleted`): set `safeUntil = tick + RULE_SAFE_TIME` (renew 24 h protection).
 
 ---
 
-## Step 10 — Sleep check
+## Step 9 — Sleep check
 
 Any `resting` gardener whose `lastActiveTick + 21600 < tick` → `sleeping`.
 
 ---
 
-## Step 11 — Persist
+## Step 10 — Persist
 
 If any `changed` flag was set: `saveState(state)`.
 
 ---
 
-## Step 12 — Selective broadcast
+## Step 11 — Selective broadcast
 
 `broadcast(notifySet)` sends a fresh `GardenerView` only to clients in `notifySet`.
 
 `notifySet` is built each tick:
-- All **non-walking** gardeners are always included (energy regen, tending expiry, rule changes, etc.).
-- **Walking** gardeners are only added when something meaningful happens to them: arrival (step 3), encounter (step 4), or rule completion (step 9).
+- All **non-walking** gardeners are always included (energy regen, rule changes, etc.).
+- **Walking** gardeners are only added when something meaningful happens to them: arrival (step 3), encounter (step 4), or rule completion (step 8).
 
 This means walking clients receive no network traffic for routine progress ticks — the client animates the meeple locally using `requestAnimationFrame` with `startTravelAnim()` exported from `location.js`.
 

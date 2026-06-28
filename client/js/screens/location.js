@@ -38,12 +38,10 @@ const GROWN_TICKS    = 21600;
 const FRUITING_TICKS = 604800;
 const DEAD_TICKS     = 2592000;
 
-const POT_EMPTY_DURATION    = 1;
-const POT_SEED_DURATION     = 60;
-const POT_SEEDLING_DURATION = 1200;
-const POT_GROWN_DURATION    = 3600;
-const POT_FRUITING_DURATION = 18000;
-const POT_DEAD_DURATION     = 1;
+const ENERGY_COST_BASE     = 1;
+const ENERGY_COST_SEEDLING = 3;
+const ENERGY_COST_GROWN    = 8;
+const ENERGY_COST_FRUITING = 12;
 
 function getGrowthStage(lastPlantedTick, currentTick) {
   if (lastPlantedTick === null || lastPlantedTick === undefined) return null;
@@ -65,16 +63,16 @@ function timeToNextStage(lastPlantedTick, currentTick) {
   return null;
 }
 
-function potTendingDuration(pot, tick) {
+function potEnergyCost(pot, tick) {
   if (!pot.seedId || pot.lastPlantedTick === null || pot.lastPlantedTick === undefined) {
-    return POT_EMPTY_DURATION;
+    return ENERGY_COST_BASE;
   }
   const age = tick - pot.lastPlantedTick;
-  if (age >= DEAD_TICKS)     return POT_DEAD_DURATION;
-  if (age >= FRUITING_TICKS) return POT_FRUITING_DURATION;
-  if (age >= GROWN_TICKS)    return POT_GROWN_DURATION;
-  if (age >= SEEDLING_TICKS) return POT_SEEDLING_DURATION;
-  return POT_SEED_DURATION;
+  if (age >= DEAD_TICKS)     return ENERGY_COST_BASE;
+  if (age >= FRUITING_TICKS) return ENERGY_COST_FRUITING;
+  if (age >= GROWN_TICKS)    return ENERGY_COST_GROWN;
+  if (age >= SEEDLING_TICKS) return ENERGY_COST_SEEDLING;
+  return ENERGY_COST_BASE;
 }
 
 // ── Travel animation ──────────────────────────────────────────────────────────
@@ -142,7 +140,6 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
   const goingRight = path.pathFrom === path.fromId;
   const t = goingRight ? frac : (1 - frac);
 
-  // Quadratic bezier P0=(20,40) P1=(150,14) P2=(280,40)
   const mx = Math.round((1-t)*(1-t)*20 + 2*(1-t)*t*150 + t*t*280);
   const my = Math.round((1-t)*(1-t)*40 + 2*(1-t)*t*14 + t*t*40);
 
@@ -176,6 +173,20 @@ function renderTravelProgress(path, movementSpeed, speedBonus, rulesSpeedBonus) 
       ${svg}
       <div id="travel-eta" class="path-visual-eta">~${formatDuration(ticksLeft)} remaining</div>
     </div>`;
+}
+
+function renderEnergyBar(energy, energyMax, energyRegenAt, tick) {
+  let html = `<div class="location-top-energy">`;
+  html += Array.from({ length: energyMax }, (_, i) =>
+    `<span class="energy-pip${i < energy ? ' full' : ''}"></span>`
+  ).join('');
+  html += `<span class="energy-label">${energy}/${energyMax}</span>`;
+  if (energyRegenAt !== null && energy < energyMax) {
+    const secs = Math.max(0, energyRegenAt - tick);
+    html += `<span class="energy-regen">+1 in ${formatDuration(secs)}</span>`;
+  }
+  html += `</div>`;
+  return html;
 }
 
 function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySeedId) {
@@ -226,6 +237,7 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
     if (pot) {
       const stage = pot.seedId ? getGrowthStage(pot.lastPlantedTick, tick) : null;
       const next  = pot.seedId ? timeToNextStage(pot.lastPlantedTick, tick) : null;
+      const cost  = potEnergyCost(pot, tick);
 
       if (pot.seedId) {
         const color = seedColor(pot.seedId);
@@ -243,18 +255,17 @@ function renderPotsWheel(pots, tick, gardener, selectedPotId, selectedNurserySee
 
       if (gardener.state === 'resting') {
         if (selectedNurserySeedId && pot.settlingUntil === null) {
-          const canPlant = gardener.energy > 0;
+          const canAfford = gardener.energy >= cost;
           const name = seedName(selectedNurserySeedId);
-          const dur = potTendingDuration(pot, tick);
-          const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
-          html += canPlant
-            ? `<button class="btn btn-sm btn-accent btn-multiline" data-action="pot" data-pot-id="${pot.id}">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${durLabel}</span></button>`
-            : `<button class="btn btn-sm btn-multiline" disabled title="No energy">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${durLabel}</span></button>`;
+          html += canAfford
+            ? `<button class="btn btn-sm btn-accent btn-multiline" data-action="pot" data-pot-id="${pot.id}">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${cost} energy</span></button>`
+            : `<button class="btn btn-sm btn-multiline" disabled title="Not enough energy">${seedIconSmall(selectedNurserySeedId)} Plant ${name}<span class="btn-duration">${cost} energy</span></button>`;
         }
         if (!selectedNurserySeedId && pot.seedId) {
-          const dur = potTendingDuration(pot, tick);
-          const durLabel = dur <= 1 ? '(instant)' : `(${formatDuration(dur)})`;
-          html += `<button class="btn btn-sm btn-danger btn-multiline" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear<span class="btn-duration">${durLabel}</span></button>`;
+          const canAfford = gardener.energy >= cost;
+          html += canAfford
+            ? `<button class="btn btn-sm btn-danger btn-multiline" data-action="pot" data-pot-id="${pot.id}" data-seed-id="">Clear<span class="btn-duration">${cost} energy</span></button>`
+            : `<button class="btn btn-sm btn-danger btn-multiline" disabled title="Not enough energy">Clear<span class="btn-duration">${cost} energy</span></button>`;
         }
         if (pot.seedId) {
           if (pot.iDecorated) {
@@ -324,43 +335,27 @@ export function renderLocation(app) {
     const destId   = path.pathFrom === path.fromId ? path.toId : path.fromId;
     const destName = (LOCATION_MAP[destId] || {}).name || destId;
     const autoArrive = getAutoArrive();
+    const energy    = gardener.energy ?? 0;
+    const energyMax = gardener.energyMax ?? 0;
 
     let html = `<div class="main-screen"><div class="screen-content">`;
 
-    html += `<div class="location-header"><h2>Travelling to ${destName}</h2></div>`;
+    html += `<div class="location-header">
+      <h2>Travelling to ${destName}</h2>
+      ${renderEnergyBar(energy, energyMax, gardener.energyRegenAt ?? null, tick)}
+    </div>`;
 
-    // Reverse button at top center
     html += `<div class="reverse-row">
       <button class="btn btn-sm" data-action="reverse">↩ Reverse</button>
     </div>`;
 
     html += renderTravelProgress(path, movementSpeed, gardener.speedBonus, rulesSpeedBonus);
 
-    // Auto-arrive toggle
     html += `<div class="auto-arrive-row">
       <button class="btn btn-sm${autoArrive ? ' btn-accent active' : ''}" data-action="toggle_auto_arrive">
         Auto-arrive${autoArrive ? ' ✓' : ''}
       </button>
     </div>`;
-
-    if (gardener.availableSeeds && gardener.availableSeeds.length > 0) {
-      html += `<div class="section">
-        <p class="seed-carry-prompt">Carrying into ${destName}:</p>
-        <div class="nursery-grid">`;
-      for (const seedId of gardener.availableSeeds) {
-        const seed = SEED_MAP[seedId];
-        const color = seed ? seed.color : '#666';
-        const isSelected = gardener.seed === seedId;
-        html += `
-          <button class="nursery-seed${isSelected ? ' planting-selected' : ''}"
-            data-action="pick_seed" data-seed-id="${seedId}"
-            ${isSelected ? 'disabled' : ''}>
-            ${seedIcon(seedId)}
-            <span class="nursery-seed-name" style="color:${color}">${seedIconSmall(seedId)}${seed ? seed.name : seedId}</span>
-          </button>`;
-      }
-      html += `</div></div>`;
-    }
 
     if (path.encounters && path.encounters.length > 0) {
       html += `<div class="section"><h3>Encountered (${path.encounters.length})</h3><div class="encounter-list">`;
@@ -411,22 +406,13 @@ export function renderLocation(app) {
     html += `<span class="population-count">${population}</span>`;
     html += `</div>`;
     html += `<h2 class="location-top-name">${locName}</h2>`;
-    html += `<div class="location-top-energy">`;
-    html += Array.from({ length: energyMax }, (_, i) =>
-      `<span class="energy-pip${i < energy ? ' full' : ''}"></span>`
-    ).join('');
-    html += `<span class="energy-label">${energy}/${energyMax}</span>`;
-    html += `</div></div>`;
+    html += renderEnergyBar(energy, energyMax, gardener.energyRegenAt ?? null, tick);
+    html += `</div>`;
   } else {
     const locName = '...';
     html += `<div class="location-top-bar">`;
     html += `<h2 class="location-top-name">${locName}</h2>`;
     html += `</div>`;
-  }
-
-  if (gardener.state === 'tending') {
-    const remaining = gardener.tendingUntil !== null ? Math.max(0, gardener.tendingUntil - tick) : 0;
-    html += `<div class="section"><div class="origin-bar"><span class="muted">Tending&hellip; (${formatDuration(remaining)})</span></div></div>`;
   }
 
   // ── Embark seed picker (replaces normal content) ──────────────────────────
@@ -508,6 +494,11 @@ export function renderLocation(app) {
     if (activeRules.length > 0) {
       html += `<div class="section"><h3>Vision</h3><div class="vision-list">`;
       for (const rule of activeRules) {
+        let safeTag = '';
+        if (rule.completed && rule.safeUntil !== null && rule.safeUntil > tick) {
+          const safeRemaining = Math.max(0, rule.safeUntil - tick);
+          safeTag = `<span class="vision-safe">Safe ${formatDuration(safeRemaining)}</span>`;
+        }
         html += `
           <div class="vision-card${rule.completed ? ' completed' : ''}${rule.satisfiedHere ? ' satisfied-here' : ''}">
             <div class="vision-level-badge level-${rule.level}">L${rule.level}</div>
@@ -516,6 +507,7 @@ export function renderLocation(app) {
               <span class="vision-progress">${rule.satisfiedCount} / ${rule.difficulty}</span>
               ${rule.satisfiedHere ? `<span class="vision-here">Here</span>` : ''}
               ${rule.completed ? `<span class="vision-badge">Complete</span>` : ''}
+              ${safeTag}
             </div>
           </div>`;
       }
