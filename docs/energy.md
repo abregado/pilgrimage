@@ -9,11 +9,11 @@ Energy is the resource that gates planting, clearing, and fast travel. This docu
 | Constant               | Value | Meaning                                      |
 |------------------------|-------|----------------------------------------------|
 | `BASE_ENERGY_MAX`      | 8     | Starting maximum energy for a new gardener   |
-| `ENERGY_REGEN_TICKS`   | 1000  | Ticks between each +1 regen (~16.7 min)      |
+| `ENERGY_REGEN_TICKS`   | 300   | Ticks between each +1 regen (5 min)          |
 | `ENERGY_BONUS_TIME`    | 1     | +max per time milestone (day, week)          |
 | `ENERGY_BONUS_EXPLORE` | 1     | +max for visiting all 15 locations           |
 | `ENERGY_BONUS_RULE`    | 1     | +max per completed, non-deleted vision rule  |
-| `FAST_TRAVEL_COST`     | 2     | Energy to activate fast travel               |
+| `FAST_TRAVEL_COST`     | 1     | Energy to activate fast travel               |
 | `ENERGY_COST_BASE`     | 1     | Plant/clear cost: empty, dead, or seed-stage |
 | `ENERGY_COST_SEEDLING` | 2     | Plant/clear cost: seedling-stage pot         |
 | `ENERGY_COST_GROWN`    | 10    | Plant/clear cost: grown-stage pot            |
@@ -70,14 +70,14 @@ Planting a seed into a pot or clearing a pot both cost energy based on the **cur
 |-------------------------------|------------------------|
 | Empty / dead / seed stage      | `ENERGY_COST_BASE` (1) |
 | Seedling stage                 | `ENERGY_COST_SEEDLING` (2) |
-| Grown stage                    | `ENERGY_COST_GROWN` (10) |
-| Fruiting stage                 | `ENERGY_COST_FRUITING` (12) |
+| Grown stage                    | `ENERGY_COST_GROWN` (6) |
+| Fruiting stage                 | `ENERGY_COST_FRUITING` (10) |
 
 The cost is computed by `potEnergyCost(potObj, tick)` in both `server/actions.js` and `client/js/screens/location.js` (for button labels and disabled state). The action guard rejects the request if `gardener.energy < cost`.
 
 ### Fast Travel (`server/actions.js → walk` / `activateFastTravel`)
 
-Fast travel costs `FAST_TRAVEL_COST` (2) energy and can be activated two ways:
+Fast travel costs `FAST_TRAVEL_COST` (1) energy and can be activated two ways:
 
 - **At embark** (`walk` action with `fast: true`, or `queue_travel` with `fast: true`): energy is deducted inside `walk()` before the gardener starts moving. Fails if `energy < FAST_TRAVEL_COST`.
 - **Mid-travel** (`activate_fast_travel` action): deducts energy from a walking gardener. Fails if already active or insufficient energy.

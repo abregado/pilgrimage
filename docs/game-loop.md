@@ -15,7 +15,7 @@ Runs every 1000ms via `setInterval`. Each tick:
 For every `walking` gardener:
 
 ```
-progress += MOVEMENT_SPEED (100) × speedBonus × (1 + completedRules × 0.10 + fullVisionBonus)
+progress += MOVEMENT_SPEED (3) × speedBonus × (1 + completedRules × 0.25 + fullVisionBonus)
 ```
 
 `completedRules` = count of non-deleted completed vision rules.  
@@ -44,7 +44,7 @@ Two walkers on the same path, heading in **opposite directions**, cross when the
 ## Step 5 — Settling expiry + dead-pot cleanup
 
 - Pots whose `settlingUntil <= tick`: clear `settlingUntil`.
-- Pots whose `age >= DEAD_TICKS (2592000)`:
+- Pots whose `age >= DEAD_TICKS (172800)`:
   - Mark `dead = true` in seedLog of any resting gardener at that location.
   - Clear `seedId`, `lastPlantedTick`, `decorators`, `settlingUntil`.
 
@@ -60,16 +60,16 @@ Growth stage thresholds (age in ticks):
 |----------|-----------------------|
 | seed     | 0 – 1799              |
 | seedling | 1800 – 21599          |
-| grown    | 21600 – 604799        |
-| fruiting | 604800 – 2591999      |
-| dead     | ≥ 2592000 (then wiped)|
+| grown    | 21600 – 129599        |
+| fruiting | 129600 – 172799       |
+| dead     | ≥ 172800 (then wiped) |
 
 ---
 
 ## Step 7 — Energy regen + energyMax sync
 
 - Recompute `energyMax` for every gardener (using `computeEnergyMax`); clamp `energy` if needed.
-- Every `ENERGY_REGEN_TICKS (1200)` ticks: `energy += 1` for all under-max gardeners.
+- Every `ENERGY_REGEN_TICKS (300)` ticks: `energy += 1` for all under-max gardeners.
 
 ---
 

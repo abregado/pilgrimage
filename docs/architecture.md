@@ -68,4 +68,4 @@ Derived in `updateScreenFromState()` from `gardener.state`:
 
 ## Persistence
 
-State is written to `server/data/state.json` on every mutation. Loaded at startup, migrated if `version` field differs from `CURRENT_VERSION` (currently 10).
+State is written to `server/data/state.json` on every mutation. Loaded at startup, migrated if `version` field differs from `CURRENT_VERSION` (currently 16).

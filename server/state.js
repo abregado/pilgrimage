@@ -5,7 +5,7 @@ import {
   ENERGY_BONUS_TIME, ENERGY_BONUS_EXPLORE, ENERGY_BONUS_RULE,
   ENERGY_REGEN_TICKS,
   GROWN_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
-  INITIAL_RULE_SLOTS,
+  INITIAL_RULE_SLOTS, RULE_SAFE_TIME,
 } from './constants.js';
 import { RULE_TEMPLATE_MAP } from './rules.js';
 
@@ -29,7 +29,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 15;
+const CURRENT_VERSION = 16;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
@@ -106,6 +106,21 @@ function migrate(loaded) {
     }
     v = 15;
     loaded.version = 15;
+  }
+
+  if (v === 15) {
+    console.log('Migrating v15 → v16: apply full-vision safe time to completed visions');
+    for (const gardener of Object.values(loaded.gardeners)) {
+      if (!gardener.rules) continue;
+      const active = gardener.rules.filter(r => r.deletedTick === null);
+      if (active.length === 0 || !active.every(r => r.completed)) continue;
+      const safeValues = new Set(active.map(r => r.safeUntil));
+      if (safeValues.size > 1) {
+        for (const r of active) r.safeUntil = loaded.tick + RULE_SAFE_TIME * 3;
+      }
+    }
+    v = 16;
+    loaded.version = 16;
   }
 
   if (v !== CURRENT_VERSION) {
