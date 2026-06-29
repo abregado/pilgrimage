@@ -4,8 +4,7 @@ import { setState, setConnected, updateScreenFromState, setTab,
          getPendingPickSeed, clearPendingPickSeed } from './state.js';
 import { setServerTick } from './clock.js';
 import { render } from './render.js';
-import { startTravelAnim, stopTravelAnim } from './screens/location.js';
-import { stopMapTravelAnim } from './screens/map.js';
+import { startTravelAnim, stopTravelAnim } from './canvas/screens/location.js';
 
 let ws = null;
 let _prevGardenerState = null;
@@ -36,7 +35,7 @@ export function connect() {
       );
       const newState = gardener?.state ?? null;
 
-      // Auto-arrive: skip arrival screen, immediately continue
+      // Auto-arrive: skip arrival screen
       if (newState === 'arriving' && getAutoArrive()) {
         clearJourneyLog();
         sendAction({ type: 'continue' });
@@ -44,9 +43,9 @@ export function connect() {
         return;
       }
 
-      // Switch to location tab when walking begins (e.g. from map tab)
+      // Switch to location/map tab when walking begins
       if (newState === 'walking' && _prevGardenerState !== 'walking') {
-        setTab('location');
+        setTab('map');
       }
 
       render();
@@ -57,9 +56,8 @@ export function connect() {
           msg.data.movementSpeed,
           gardener.speedBonus,
           msg.data.rulesSpeedBonus,
-          gardener.fastTravel ?? false
+          gardener.fastTravel ?? false,
         );
-        // Auto-pick seed chosen in the embark picker
         const pending = getPendingPickSeed();
         if (pending && pending !== gardener.seed &&
             gardener.availableSeeds?.includes(pending)) {
@@ -68,7 +66,6 @@ export function connect() {
         clearPendingPickSeed();
       } else {
         stopTravelAnim();
-        stopMapTravelAnim();
       }
 
       _prevGardenerState = newState;
@@ -77,12 +74,11 @@ export function connect() {
 
   ws.onclose = () => {
     stopTravelAnim();
-    stopMapTravelAnim();
     setTimeout(connect, 3000);
   };
 
   ws.onerror = () => {
-    // onclose will fire after onerror
+    // onclose fires after onerror
   };
 }
 
