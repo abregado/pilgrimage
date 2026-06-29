@@ -1,6 +1,6 @@
 # UI Improvement Plan
 
-Goals: (1) rustic/floral/wooden bonsai-inspired visual theme, (2) dark and light colour schemes, (3) replaceable meeple SVG, (4) travelling screen parallax landscape, (5) responsive desktop two-column layout, (6) widget UX improvements throughout.
+Goals: (1) rustic/floral/wooden bonsai-inspired visual theme, (2) dark and light colour schemes, (3) replaceable meeple SVG, (4) travelling screen parallax landscape, (5) single HTML5 canvas rendering with portrait/landscape orientation-based layout switching — three-column desktop (landscape) and swipe-paged mobile (portrait) with separate mouse/touch input models, (6) widget UX improvements throughout.
 
 ---
 
@@ -72,6 +72,10 @@ Five semantic tokens are added alongside the existing set:
 | `--moss` | Vivid chartreuse; vigorous/healthy accent | Base moss in every mature plant |
 
 `--sage` is retained as an alias for `--jade` — no CSS class names change.
+
+---
+
+**Canvas note:** Because all rendering goes through the Canvas 2D API, these tokens are not CSS custom properties — they are fields on a `THEME` JS object (defined fully in §4g). The colour values listed in §1c/§1d are the source of truth; CSS variables are not used in the main canvas layer.
 
 ---
 
@@ -463,95 +467,150 @@ if (meepleEl) {
 
 ---
 
-## 4. Desktop Two-Column Layout
+## 4. Canvas Architecture & Layout
 
-### Breakpoint
+### 4a. Rendering approach: single HTML5 canvas
 
-`min-width: 900px`. Below this, everything is identical to the current mobile layout.
+The entire game UI renders on a single `<canvas>` element that fills the viewport. There are no DOM-based UI elements in the game layer — no divs, no scrollable elements, no CSS layout. The only HTML beyond the canvas is a hidden `<input>` for any future text-entry fields.
 
-### Layout
+**Core infrastructure:**
+
+- **Render loop:** `requestAnimationFrame` drives all visual updates. A dirty-flag system tracks which panels need redrawing and skips full-canvas redraws when nothing has changed.
+- **DPR scaling:** On init (and on each `resize`), `canvas.width = window.innerWidth * devicePixelRatio`, `canvas.height = window.innerHeight * devicePixelRatio`, then `ctx.scale(dpr, dpr)`. All layout coordinates are in CSS pixels; the canvas surface is sharper on retina displays.
+- **Font loading:** Fonts are loaded via the FontFace API. The render loop is gated behind `document.fonts.ready` — no text draws until fonts are available.
+- **Asset preloading:** All images (plant PNGs, seed SVGs, parallax layers, meeple SVGs, texture PNGs) are pre-decoded into `HTMLImageElement` instances at startup. `drawImage()` references these cached instances. A loading screen is shown until all assets resolve.
+- **Hit registry:** Each interactive region registers a bounding box `{ x, y, w, h, action, data }` each render frame. Mouse/touch handlers iterate this list in reverse (top-most first) to dispatch actions. The registry is rebuilt on every frame — no stale state.
+- **Scroll state:** Each scrollable panel tracks an independent `scrollY` offset in the render state. Scrolling is simulated by saving/translating/clipping the draw context, not by native browser scroll.
+- **Theme constants:** CSS custom properties do not apply to canvas. Theme tokens live in a JS `THEME` object. See §4g.
+
+---
+
+### 4b. Orientation breakpoints
+
+Layout is determined by orientation, not a pixel breakpoint:
+
+| Condition | Layout mode |
+|---|---|
+| `window.innerWidth >= window.innerHeight` | **Desktop** — three-column landscape |
+| `window.innerWidth < window.innerHeight` | **Mobile** — single-column portrait, swipe-paged |
+
+A `resize` event handler recalculates column widths, resets panel scroll offsets, flushes the hit registry, and triggers a full redraw. Orientation changes are treated as resizes.
+
+---
+
+### 4c. Desktop three-column layout (landscape)
 
 ```
-┌────────────────────────────┬────────────────────────────────────┐
-│  LEFT PANEL (360px fixed)  │  RIGHT PANEL (flex: 1)             │
-│                            │                                    │
-│  Location name + energy    │  [Map]  [Record]  [Info]  [☀/☾]   │
-│  ─────────────────────     │  ─────────────────────────────     │
-│  Pots wheel                │                                    │
-│  Nursery                   │  Map / Record / Info content       │
-│  Vision                    │  (scrollable independently)        │
-│  Travel paths              │                                    │
-│                            │                                    │
-│  OR: Parallax travel scene │                                    │
-│      with pilgrim meeple   │                                    │
-└────────────────────────────┴────────────────────────────────────┘
+┌────────────────┬─────────────────┬──────────────────────────────────┐
+│  LEFT (220px)  │  MIDDLE (300px) │  RIGHT (remaining width)         │
+│                │                 │                                  │
+│  Visions       │  Pot display    │  [Map] [Record] [Info]  [☀/☾]   │
+│  panel         │  (wheel +       │  ──────────────────────────────  │
+│                │   pot drawer)   │                                  │
+│  Independently │                 │  Active tab content              │
+│  scrollable    │  OR: parallax   │  (independently scrollable)      │
+│                │  travel scene   │                                  │
+│                │  + controls     │                                  │
+└────────────────┴─────────────────┴──────────────────────────────────┘
 ```
 
-### CSS
+**Column responsibilities:**
 
-```css
-@media (min-width: 900px) {
-  #app { max-width: none; }
+- **Left (220px fixed):** Visions only — vision cards with progress bars and shimmer states. Independently scrollable. Location name and energy bar are shown at the top of this column above the vision list.
+- **Middle (300px fixed):** Pot display only — the pots wheel and pot detail drawer. When the player is walking, this column replaces the pot display with the parallax travel scene and travel controls (Reverse, Auto-arrive, Fast Travel). Independently scrollable if the pot drawer is tall.
+- **Right (remaining width):** Tab bar pinned at the top of the column; active tab content fills the remainder. Independently scrollable. Tabs: Map, Record, Info. Theme toggle sits at the far right of the tab bar.
 
-  .main-screen {
-    flex-direction: row;
-    width: 100%;
-    height: 100dvh;
-    overflow: hidden;
-  }
+**Column separators:** 1px vertical lines drawn in `THEME.border` between each column.
 
-  .left-panel {
-    width: 360px;
-    flex-shrink: 0;
-    height: 100dvh;
-    overflow-y: auto;
-    border-right: 1px solid var(--border);
-    padding: 20px 16px;
-  }
+**Travel state:** While walking, the Left column continues to show visions. The Middle column shows the parallax travel scene. The Right column shows the Map tab by default (so the player can watch the route progress).
 
-  .right-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    height: 100dvh;
-    overflow: hidden;
-  }
+---
 
-  .desktop-tab-bar {
-    position: static;
-    transform: none;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
-    max-width: none;
-    width: 100%;
-    flex-shrink: 0;
-  }
+### 4d. Desktop input handling (mouse + click-drag)
 
-  .right-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px 16px;
-  }
+All interaction uses mouse events attached to the canvas element. Touch events are not connected in desktop mode.
 
-  .desktop-tab-bar .tab-btn[data-tab="location"] { display: none; }
-}
-```
+- **Click:** `mousedown` + `mouseup` within a ~4px movement threshold → hit-test the registry → dispatch action.
+- **Hover states:** `mousemove` → hit-test → update a `hoveredRegion` variable → set `canvas.style.cursor` (`pointer` over buttons, `grab` over draggable regions). On the next frame, hovered regions render with a highlight.
+- **Map panning (click-drag):** On the Map tab in the right column, `mousedown` inside the map region begins a pan drag. `mousemove` accumulates `(dx, dy)` and shifts the map viewport offset. `mouseup` or `mouseleave` ends the drag.
+- **Pots wheel rotation (click-drag):** On the Middle column, dragging left/right within the wheel area shifts the selected pot index. A momentum/snap system reads pointer velocity on release and coasts the wheel to the nearest pot.
+- **Scroll:** `wheel` events on the canvas hit-test which column the cursor is over and adjust that panel's `scrollY`. Clamped to the content height.
 
-### JS changes in `renderLocation`
+---
+
+### 4e. Mobile single-column layout (portrait)
+
+In portrait mode, the three logical columns become three horizontally-arranged **pages** that are swiped between. Only one page is visible at a time; the others are rendered off-screen and translated into view during a swipe gesture.
+
+| Page index | Content |
+|---|---|
+| 0 (left) | Visions |
+| 1 (center, default) | Pot display (or travel scene while walking) |
+| 2 (right) | Tabbed content — Map / Record / Info |
+
+**Navigation indicator:** Three dots drawn at the bottom of the canvas indicate the current page. Active dot uses `THEME.accent`; inactive dots use `THEME.stone`.
+
+**Page transitions:** A swipe gesture animates all three pages sliding in unison. The animation is driven by `requestAnimationFrame` with an `easeOutCubic` curve over ~250ms. There is no momentum scroll between pages — swipe commits to the next/previous page or snaps back.
+
+**Scroll within pages:** Vertical swipes scroll the content of the current page. The page-nav swipe recogniser fires only when horizontal delta exceeds vertical delta by a ratio of at least 1.5:1, preventing accidental page changes during content scrolling.
+
+---
+
+### 4f. Mobile input handling (touch only)
+
+Touch events are attached to the canvas element. Mouse events are not connected in mobile mode.
+
+- **Tap:** `touchstart` records position and time. `touchend` at ≤ 8px displacement and ≤ 300ms → hit-test → dispatch action.
+- **Page swipe:** `touchstart` → `touchmove` tracking horizontal delta. If `|dx| > |dy| × 1.5` (landscape-swipe guard) and `|dx| > 40px`, begin page transition. `touchend` commits or snaps back based on velocity/distance threshold.
+- **Content scroll:** If `|dy| > |dx| × 1.2` (portrait-swipe guard), accumulate vertical delta into the current page's `scrollY`. A kinetic decay continues scrolling after `touchend` using exponential ease-out.
+- **Pots wheel swipe:** Swiping left/right within the pots wheel region rotates the selected pot. Snaps to the nearest pot after release, with slight momentum.
+- **No drag, no hover, no right-click, no multi-touch (for now).**
+
+Long-press (> 500ms without movement) can be reserved for future contextual menus but is not used in the initial implementation.
+
+---
+
+### 4g. Theme as JS constants
+
+Because canvas rendering does not use CSS, the colour tokens from §1c and §1d are implemented as fields on a `THEME` JS module — not as CSS custom properties. The colour values are identical; only the mechanism changes.
 
 ```js
-function isDesktop() { return window.innerWidth >= 900; }
+// Approximate structure — exact field names match §1c/§1d token names
+export const THEME_DARK = {
+  bg:       '#0c0e14',
+  surface:  '#14161e',
+  surface2: '#1c1f2a',
+  border:   '#2c3044',
+  text:     '#e8e4d0',
+  muted:    '#7a7a8a',
+  accent:   '#d4a843',
+  jade:     '#5a8a5c',
+  glaze:    '#44527a',
+  clay:     '#9a6030',
+  stone:    '#585864',
+  moss:     '#7aaa28',
+  danger:   '#b04040',
+};
+
+export const THEME_LIGHT = { /* matching values from §1d */ };
+
+export let THEME = THEME_DARK;  // active; swapped by toggleTheme()
 ```
 
-**Desktop path:**
-1. Build location/travel HTML into `leftHtml`
-2. Build a desktop tab bar with Map / Record / Info / theme-toggle
-3. `app.innerHTML` = two-panel structure
-4. Call `renderMap` / `renderRecord` / `renderInfo` on `#right-content`
+All draw calls use `THEME.surface`, `THEME.accent`, etc. `toggleTheme()` swaps `THEME` and invalidates all panel dirty flags, triggering a full redraw on the next frame. The preference is persisted to `localStorage` exactly as §1e describes, but the `data-theme` attribute on `<html>` is not used.
 
-**Default right tab:** `const rightTab = tab === 'location' ? 'map' : tab`
+---
 
-**Mobile path:** unchanged.
+### 4h. Canvas animation approach
+
+The CSS animations described throughout §8 are re-expressed as time-based canvas draw logic rather than CSS keyframes:
+
+- Each animation is driven by a start timestamp stored in render state.
+- On each `requestAnimationFrame` tick, elapsed time `t` is computed and the animated value is derived from an easing function.
+- When `t >= duration`, the animation is marked complete and removed from state — no further redraws are triggered by it.
+- The `prefers-reduced-motion` media query is checked once at startup. If true, all animation durations are set to `0.01ms` (effectively instant), respecting §8's accessibility requirement.
+
+The visual intent of every animation in §8 is unchanged — only the implementation mechanism moves from CSS keyframes to canvas draw math.
 
 ---
 
@@ -1208,38 +1267,59 @@ The `::after` sits above all parallax layers (`z-index: 20`) but the flash is br
 
 ## 9. Updated Implementation Order
 
-1. **Colour tokens** — dark and light themes, new tokens.
-2. **Typography + light theme** — Lora font, light theme CSS block, seed icon shadow fix.
-3. **Theme toggle** — `toggleTheme()`, button in Info tab.
-4. **Energy regen CSS** — `.energy-regen` rule (30-second fix, do it first because it's currently broken).
-5. **Replaceable status meeple** — `meeple.js` → div + mask, `/assets/meeple.svg` placeholder.
-6. **Pot selection with `--glaze`** — single CSS line change.
-7. **Pot drawer** — remove center panel from wheel, add `.pot-drawer` below wheel in `location.js`.
-8. **Pot drawer open animation** — add `drawer-open` keyframe; fires automatically on DOM insertion.
-9. **Nursery target highlighting** — add `pot-item--plantable` / `pot-item--settling` classes in pot loop.
-10. **Arrival screen: Continue button at top + entrance animations** — move button, add `seed-sprout` / `name-rise` keyframes to `arrival.js`.
-11. **Vision progress bar + satisfied-here shimmer** — CSS keyframes + one line of HTML per card.
-12. **Energy pip bloom** — `_prevEnergy` tracking in `location.js`, `pip-bloom` keyframe.
-13. **Pot memory strip → seed icons** — replace dot rendering in `location.js` and `map.js`.
-14. **Walking screen: separate Reverse/Fast Travel, move Auto-arrive, add speed-flash**.
-15. **Encounter row slide-in** — `_knownEncounterIds` tracking, `encounter-enter` keyframe.
-16. **Surface texture + section dividers** — CSS + divider elements in `location.js`.
-17. **Travel parallax + travel meeple** — replace `renderTravelProgress()`, extend `startTravelAnim()`.
-18. **Embark picker → bottom sheet** — CSS `slide-up` animation + JS restructure.
-19. **Connect screen: background, leaf drift, title shimmer** — `renderConnect()` leaf injection, `gold-shimmer` keyframe.
-20. **Map route trace** — `draw-path` keyframe + `pathLength` + per-segment delay in `renderMap()`.
-21. **Record → move Music/Delete to Info tab** with two-step delete confirmation.
-22. **Desktop two-column layout** — `isDesktop()` branch + `@media` CSS.
-23. **Card corners, tab bar texture** — final polish.
-24. **`prefers-reduced-motion` global rule** — add last, verify all animations are suppressed.
+### Phase 0 — Canvas foundation (prerequisite for everything else)
+
+1. **Canvas shell** — replace `#app` div with a full-viewport `<canvas>`. Set up the `requestAnimationFrame` render loop, DPR scaling, and `resize` handler. A solid `THEME_DARK.bg` fill proves it works.
+2. **THEME constants module** — define `THEME_DARK` and `THEME_LIGHT` objects with the colour values from §1c/§1d. Wire `toggleTheme()` to swap the active THEME and trigger a full redraw. Persist to `localStorage`.
+3. **Font loading gate** — load Lora via FontFace API; hold first render until `document.fonts.ready` resolves.
+4. **Asset preloader** — preload all image assets (plant PNGs, seed SVGs, textures, parallax layers, meeple SVGs) into a keyed map of `HTMLImageElement`. Show a loading screen until complete.
+5. **Hit registry + input dispatch** — implement the bounding-box hit registry, `mousedown`/`mouseup`/`mousemove` handlers (desktop) and `touchstart`/`touchmove`/`touchend` handlers (mobile). Wire to a central action dispatcher that mirrors the existing action names used throughout the codebase.
+6. **Orientation detection** — `isLandscape()` check on `window.innerWidth >= window.innerHeight`; `resize` handler rebuilds column layout and flushes scroll offsets.
+
+### Phase 1 — Layout structure
+
+7. **Desktop three-column layout** — draw column separators; implement per-column clip regions; wire each column to its content renderer (visions / pot display / tab content). Placeholder grey fill in each column to verify proportions.
+8. **Mobile swipe-page layout** — three virtual pages; page indicator dots; horizontal swipe recognition with the 1.5:1 guard ratio; page-transition animation with `easeOutCubic` over ~250ms.
+9. **Per-panel scroll** — vertical scroll tracking with kinetic decay for mobile; `wheel` event routing per column for desktop. Clamp to content height.
+
+### Phase 2 — Core widget rendering (canvas draw calls)
+
+10. **Energy regen display** — draw energy pips and regen countdown in `THEME.accent`; currently broken (§B6), fix early.
+11. **Replaceable status meeple** — draw the meeple via `drawImage()` with tint using `globalCompositeOperation`. Load from `/assets/meeple.svg` placeholder.
+12. **Pot selection with glaze colour** — pot wheel selection highlight drawn in `THEME.glaze`.
+13. **Pot drawer** — remove the center panel logic; draw pot detail drawer below the wheel in the Middle column.
+14. **Nursery target highlighting** — when `selectedNurserySeedId` is set, mark plantable pots with a time-based opacity-oscillating jade border.
+15. **Arrival screen: Continue button at top + entrance animations** — reorder draw calls; implement `seed-sprout` scale spring and `name-rise` translate fade as time-based canvas animations per §4h.
+16. **Vision progress bars + satisfied-here shimmer** — draw progress bars under each vision card; time-based border glow pulse for `satisfied-here` state.
+17. **Energy pip bloom** — track `_prevEnergy`; newly filled pips run a scale+colour spring animation.
+18. **Pot memory strip → seed icons** — draw 14px seed icon images in place of dot circles.
+19. **Walking screen controls** — separate Reverse/Fast Travel rows; move Auto-arrive alongside them (§B2/§C2); draw in Middle column.
+20. **Encounter row slide-in** — `_knownEncounterIds` tracking; new rows translate in from `+24px` over ~300ms.
+
+### Phase 3 — Rich visuals
+
+21. **Surface texture overlay** — draw `texture-surface.png` tiled over card/panel regions using `ctx.createPattern()`.
+22. **Section dividers** — draw the floral SVG divider image between sections in the left/middle columns.
+23. **Travel parallax + travel meeple** — implement parallax layer `translateX` as `drawImage()` with fractional offset; add meeple bob. Solid-colour placeholder layers first.
+24. **Embark picker → bottom-sheet overlay** — draw a darkening scrim over the full canvas, then the embark sheet above it with slide-up animation. Tapping the scrim closes the sheet.
+25. **Connect screen: background, leaf drift, title shimmer** — `drawImage()` for background; leaf particle system with time-based positions; gold shimmer on title text via a moving gradient clip.
+26. **Map route trace** — draw route segments with animated stroke progress; per-segment delay.
+27. **Fast Travel activation flash** — brief white overlay rectangle at low opacity over the Middle column travel scene.
+
+### Phase 4 — Polish and accessibility
+
+28. **Card corners** — draw the corner flourish SVG at corners of vision cards and path rows.
+29. **Tab bar texture** — draw `tab-bar-bg.png` behind the right-column tab bar.
+30. **Record → move Music/Delete to Info tab** — with two-step delete confirmation drawn as an inline overlay prompt.
+31. **`prefers-reduced-motion` check** — on startup, if `matchMedia('(prefers-reduced-motion: reduce)').matches`, set all animation durations to `0.01ms` throughout the render state so time-based animations skip to their end state instantly.
 
 ---
 
 ## 10. What Is Not Changing
 
 - All game logic, server code, WebSocket protocol
-- `_tab` state variable and tab-switching behaviour
 - The 15 seed SVG files and all plant PNG images
-- Mobile layout below 900px (except for improvements within the same layout)
-- The `startTravelAnim` / `stopTravelAnim` export contract (callers unchanged; internals extended)
-- Data actions — all `data-action` attributes on buttons remain identical; the click handler in `main.js` does not need to change for any widget UX improvement above
+- The visual intent of all colour tokens (values unchanged; mechanism moves from CSS vars to JS THEME object)
+- The `startTravelAnim` / `stopTravelAnim` export contract (callers unchanged; internals replaced with canvas draw calls)
+- All action names throughout the codebase — the canvas hit registry dispatches the same action strings, so game logic handlers need no changes
+- The asset list in §5 — same files, same sizes, same content; they are now loaded via the preloader rather than CSS `url()` references
