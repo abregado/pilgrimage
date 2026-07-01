@@ -20,6 +20,17 @@ let _pendingPickSeed = null;
 let _journeyLog = [];
 let _baseWanderingsLen = null;
 
+// Transient error banner (e.g. a rejected optimistic prediction)
+let _lastError = null; // { message, expiresAt: performance.now()-based ms } | null
+
+export function setLastError(message, durationMs = 3000) {
+  _lastError = { message, expiresAt: performance.now() + durationMs };
+}
+export function getLastError() {
+  if (_lastError && performance.now() > _lastError.expiresAt) _lastError = null;
+  return _lastError;
+}
+
 export function setState(s) {
   // On location change: reset pot selection and pre-select carried seed in nursery
   if (s && (!_state || _state.gardener.locationId !== s.gardener.locationId)) {

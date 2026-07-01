@@ -6,7 +6,7 @@ import {
 } from './constants.js';
 import { PATH_MAP } from './world.js';
 import { SEEDS } from './seeds.js';
-import { computeEnergyMax } from './state.js';
+import { computeEnergyMax, nonWalkingDeviceIdsAtLocation } from './state.js';
 import { RULE_TEMPLATE_MAP, pickNewRuleForLevel } from './rules.js';
 
 export function startGameLoop(getState, saveState, broadcast) {
@@ -32,14 +32,6 @@ function tick(getState, saveState, broadcast) {
   const notifySet = new Set();
   for (const [deviceId, g] of Object.entries(state.gardeners)) {
     idToDevice[g.id] = deviceId;
-  }
-  // Map locationId → non-walking deviceIds for pot-mutation notifications
-  const notifyAtLoc = {};
-  for (const [deviceId, g] of Object.entries(state.gardeners)) {
-    if (g.state !== 'walking' && g.locationId) {
-      if (!notifyAtLoc[g.locationId]) notifyAtLoc[g.locationId] = [];
-      notifyAtLoc[g.locationId].push(deviceId);
-    }
   }
 
   // 1. Increment tick
@@ -86,7 +78,7 @@ function tick(getState, saveState, broadcast) {
             }
           }
           if (!gardener.locationMemory) gardener.locationMemory = {};
-          gardener.locationMemory[destId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId }));
+          gardener.locationMemory[destId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId, lastPlantedTick: p.lastPlantedTick }));
         }
         for (const otherG of Object.values(state.gardeners)) {
           if (otherG.id !== gardener.id && otherG.locationId === destId &&
@@ -169,7 +161,7 @@ function tick(getState, saveState, broadcast) {
       if (pot.settlingUntil !== null && pot.settlingUntil <= state.tick) {
         pot.settlingUntil = null;
         changed = true;
-        for (const dId of (notifyAtLoc[locId] || [])) notifySet.add(dId);
+        for (const dId of nonWalkingDeviceIdsAtLocation(state, locId)) notifySet.add(dId);
       }
       if (pot.seedId && pot.lastPlantedTick !== null &&
           (state.tick - pot.lastPlantedTick) >= DEAD_TICKS) {
@@ -185,7 +177,7 @@ function tick(getState, saveState, broadcast) {
         pot.decorators = [];
         pot.settlingUntil = null;
         changed = true;
-        for (const dId of (notifyAtLoc[locId] || [])) notifySet.add(dId);
+        for (const dId of nonWalkingDeviceIdsAtLocation(state, locId)) notifySet.add(dId);
       }
     }
   }

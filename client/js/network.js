@@ -1,18 +1,28 @@
 import { getOrCreateDeviceId } from './utils.js';
-import { setState, setConnected, updateScreenFromState, setTab,
-         getAutoArrive, clearJourneyLog,
+import { setState, getState, setConnected, updateScreenFromState, setTab,
+         getAutoArrive, clearJourneyLog, setLastError,
          getPendingPickSeed, clearPendingPickSeed } from './state.js';
-import { setServerTick } from './clock.js';
+import { setServerTick, liveTick } from './clock.js';
 import { render } from './render.js';
 import { startTravelAnim, stopTravelAnim } from './canvas/screens/location.js';
+import { applyPredictedAction } from './predict.js';
 
 let ws = null;
 let _prevGardenerState = null;
+
+// Optimistic-prediction bookkeeping — reset on every (re)connect, matching
+// the server's own per-connection lastProcessedSeq reset (server/index.js).
+let _seq = 0;
+let _pending = [];             // [{seq, action}], oldest first
+let _lastAuthoritative = null; // last GardenerView actually received from the server
 
 export function connect() {
   const deviceId = getOrCreateDeviceId();
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${protocol}//${location.host}`);
+  _seq = 0;
+  _pending = [];
+  _lastAuthoritative = null;
 
   ws.onopen = () => {
     ws.send(JSON.stringify({ type: 'connect', deviceId }));
@@ -22,13 +32,27 @@ export function connect() {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
 
+    if (msg.type === 'error') {
+      _pending = _pending.filter(p => p.seq !== msg.seq);
+      if (_lastAuthoritative) {
+        setState(_replayPending(_lastAuthoritative));
+        render();
+      }
+      setLastError(msg.message);
+      return;
+    }
+
     if (msg.type === 'state') {
       setConnected(true);
-      setState(msg.data);
+
+      _lastAuthoritative = msg.data;
+      const view = msg.data ? _reconcile(msg.data) : null;
+
+      setState(view);
       updateScreenFromState();
-      const gardener = msg.data?.gardener;
+      const gardener = view?.gardener;
       setServerTick(
-        msg.data.tick,
+        view?.tick ?? 0,
         gardener?.energy ?? 0,
         gardener?.energyRegenAt ?? null,
         gardener?.energyMax ?? 0,
@@ -50,12 +74,12 @@ export function connect() {
 
       render();
 
-      if (newState === 'walking' && msg.data.path) {
+      if (newState === 'walking' && view.path) {
         startTravelAnim(
-          msg.data.path,
-          msg.data.movementSpeed,
+          view.path,
+          view.movementSpeed,
           gardener.speedBonus,
-          msg.data.rulesSpeedBonus,
+          view.rulesSpeedBonus,
           gardener.fastTravel ?? false,
         );
         const pending = getPendingPickSeed();
@@ -80,9 +104,35 @@ export function connect() {
   ws.onerror = () => {
     // onclose fires after onerror
   };
+};
+
+// Drops acknowledged pending actions (seq <= server's lastProcessedSeq for us)
+// and replays whatever's left on top of the fresh authoritative view.
+function _reconcile(authoritativeView) {
+  const lastProcessedSeq = authoritativeView.gardener?.lastProcessedSeq ?? 0;
+  _pending = _pending.filter(p => p.seq > lastProcessedSeq);
+  return _replayPending(authoritativeView);
+}
+
+function _replayPending(baseView) {
+  let view = baseView;
+  for (const p of _pending) {
+    const replayed = applyPredictedAction(view, p.action, view.tick);
+    if (replayed) view = replayed;
+  }
+  return view;
 }
 
 export function sendAction(action) {
   if (!ws || ws.readyState !== 1) return;
-  ws.send(JSON.stringify({ type: action.type, ...action }));
+  const seq = ++_seq;
+
+  const predicted = applyPredictedAction(getState(), action, liveTick());
+  if (predicted) {
+    _pending.push({ seq, action });
+    setState(predicted);
+    render();
+  }
+
+  ws.send(JSON.stringify({ type: action.type, ...action, seq }));
 }

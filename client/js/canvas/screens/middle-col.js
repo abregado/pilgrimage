@@ -12,45 +12,10 @@ import { getSelectedPotId, getSelectedNurserySeedId, getAutoArrive } from '../..
 import { SEED_MAP } from '../../seeds.js';
 import { liveTick } from '../../clock.js';
 import { formatDuration } from '../../utils.js';
-import {
-  SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
-  FAST_TRAVEL_COST, FAST_TRAVEL_MULTI,
-  ENERGY_COST_BASE, ENERGY_COST_SEEDLING, ENERGY_COST_GROWN, ENERGY_COST_FRUITING,
-} from '/js/constants.js';
+import { getGrowthStage, timeToNextStage, potEnergyCost } from '../../growth.js';
+import { FAST_TRAVEL_COST, FAST_TRAVEL_MULTI } from '/js/constants.js';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
-
-function getGrowthStage(lastPlantedTick, currentTick) {
-  if (lastPlantedTick === null || lastPlantedTick === undefined) return null;
-  const age = currentTick - lastPlantedTick;
-  if (age >= DEAD_TICKS)     return 'dead';
-  if (age >= FRUITING_TICKS) return 'fruiting';
-  if (age >= GROWN_TICKS)    return 'grown';
-  if (age >= SEEDLING_TICKS) return 'seedling';
-  return 'seed';
-}
-
-function timeToNextStage(lastPlantedTick, currentTick) {
-  if (lastPlantedTick === null || lastPlantedTick === undefined) return null;
-  const age = currentTick - lastPlantedTick;
-  if (age < SEEDLING_TICKS) return { next: 'seedling', remaining: SEEDLING_TICKS - age };
-  if (age < GROWN_TICKS)    return { next: 'grown',    remaining: GROWN_TICKS    - age };
-  if (age < FRUITING_TICKS) return { next: 'fruiting', remaining: FRUITING_TICKS - age };
-  if (age < DEAD_TICKS)     return { next: 'dead',     remaining: DEAD_TICKS     - age };
-  return null;
-}
-
-function potEnergyCost(pot, tick) {
-  if (!pot.seedId || pot.lastPlantedTick === null || pot.lastPlantedTick === undefined) {
-    return ENERGY_COST_BASE;
-  }
-  const age = tick - pot.lastPlantedTick;
-  if (age >= DEAD_TICKS)     return ENERGY_COST_BASE;
-  if (age >= FRUITING_TICKS) return ENERGY_COST_FRUITING;
-  if (age >= GROWN_TICKS)    return ENERGY_COST_GROWN;
-  if (age >= SEEDLING_TICKS) return ENERGY_COST_SEEDLING;
-  return ENERGY_COST_BASE;
-}
 
 function _stageColor(stage, T) {
   switch (stage) {
@@ -429,13 +394,11 @@ function _drawTravelScene(ctx, col, path, travelAnimData, T) {
     drawLine(ctx, mx + mkSize / 2, my - mkSize / 2, mx - mkSize / 2, my + mkSize / 2, T.stone, 2);
   }
 
-  // Meeple position
+  // Meeple position — travelAnimData.progress is already extrapolated to "now"
+  // by getTravelAnimData(); re-applying elapsed*effectiveSpeed here would double it.
   let frac = 0;
   if (travelAnimData) {
-    const elapsed  = (performance.now() - travelAnimData.startTime) / 1000;
-    const progress = Math.min(travelAnimData.length,
-      travelAnimData.progress + travelAnimData.effectiveSpeed * elapsed);
-    frac = progress / travelAnimData.length;
+    frac = Math.min(1, travelAnimData.progress / travelAnimData.length);
   } else if (path) {
     frac = Math.min(1, path.progress / path.length);
   }
@@ -550,10 +513,8 @@ function _drawETA(ctx, col, path, travelAnimData, gardener, T) {
   const etaY = col.y + 90 + SCENE_H + 28;
   let remaining = 0;
   if (travelAnimData) {
-    const elapsed  = (performance.now() - travelAnimData.startTime) / 1000;
-    const progress = Math.min(travelAnimData.length,
-      travelAnimData.progress + travelAnimData.effectiveSpeed * elapsed);
-    remaining = Math.max(0, travelAnimData.length - progress);
+    // travelAnimData.progress is already extrapolated to "now" — see _drawTravelScene.
+    remaining = Math.max(0, travelAnimData.length - travelAnimData.progress);
     const ticksLeft = Math.ceil(remaining / Math.max(1, travelAnimData.effectiveSpeed));
     drawText(ctx, `~${formatDuration(ticksLeft)} remaining`, col.x + col.w / 2, etaY, {
       font: '12px Lora, Georgia, serif', color: T.muted,

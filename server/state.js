@@ -147,6 +147,18 @@ export function getState() {
   return _state;
 }
 
+// deviceIds of gardeners who are physically at locationId right now (i.e. not
+// mid-walk) — the audience for any broadcast about a change to that location's
+// pots/occupants. Shared by the game loop's tick-driven notifications and
+// index.js's action-triggered broadcasts.
+export function nonWalkingDeviceIdsAtLocation(state, locationId) {
+  const ids = [];
+  for (const [deviceId, g] of Object.entries(state.gardeners)) {
+    if (g.state !== 'walking' && g.locationId === locationId) ids.push(deviceId);
+  }
+  return ids;
+}
+
 export function getGardenerView(deviceId) {
   if (!_state) return null;
   const gardener = _state.gardeners[deviceId];

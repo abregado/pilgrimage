@@ -3,7 +3,7 @@ import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { initState, getState, getGardenerView } from './state.js';
+import { initState, getState, getGardenerView, nonWalkingDeviceIdsAtLocation } from './state.js';
 import { loadState, saveState } from './persistence.js';
 import { startGameLoop } from './gameLoop.js';
 import * as actions from './actions.js';
@@ -34,6 +34,18 @@ app.use(express.static('./client'));
 // Map: deviceId → ws
 const clients = new Map();
 
+// Map: deviceId → highest action seq number processed for that device.
+// Reset on connect, dropped on disconnect — purely a per-session reconciliation
+// aid for the client's optimistic-prediction replay, never persisted.
+const lastProcessedSeqByDevice = new Map();
+
+// Action types whose effects are visible to other gardeners currently at the
+// *resulting* location (pots/otherGardeners/seedPool all location-scoped).
+const LOCATION_SCOPED_CURRENT = new Set(['decorate', 'undecorate', 'pot', 'swap', 'continue', 'join']);
+// Action types that remove the actor from a location — the location being
+// *left* needs to know, not the (not-yet-arrived) destination.
+const LOCATION_SCOPED_LEAVE = new Set(['walk', 'queue_travel']);
+
 function sendToClient(ws, msg) {
   if (ws.readyState === 1) ws.send(JSON.stringify(msg));
 }
@@ -42,7 +54,10 @@ function broadcast(deviceIdsFilter = null) {
   for (const [deviceId, ws] of clients) {
     if (deviceIdsFilter !== null && !deviceIdsFilter.has(deviceId)) continue;
     const view = getGardenerView(deviceId);
-    if (view) sendToClient(ws, { type: 'state', data: view });
+    if (view) {
+      view.gardener.lastProcessedSeq = lastProcessedSeqByDevice.get(deviceId) ?? 0;
+      sendToClient(ws, { type: 'state', data: view });
+    }
   }
 }
 
@@ -56,13 +71,16 @@ wss.on('connection', (ws) => {
     if (msg.type === 'connect') {
       deviceId = msg.deviceId;
       clients.set(deviceId, ws);
+      lastProcessedSeqByDevice.set(deviceId, 0);
       const connectState = getState();
       const existing = connectState.gardeners[deviceId];
       if (existing) {
         if (existing.state === 'sleeping') existing.state = 'resting';
         existing.lastActiveTick = connectState.tick;
         saveState(connectState);
-        sendToClient(ws, { type: 'state', data: getGardenerView(deviceId) });
+        const view = getGardenerView(deviceId);
+        view.gardener.lastProcessedSeq = 0;
+        sendToClient(ws, { type: 'state', data: view });
       } else {
         sendToClient(ws, { type: 'state', data: null });
       }
@@ -73,6 +91,10 @@ wss.on('connection', (ws) => {
 
     const state = getState();
     let result = { ok: false };
+    // Captured before dispatch: walk/queue_travel clear locationId as part of
+    // their mutation, so this is the only way to know which location's other
+    // occupants need telling that this gardener left.
+    const locBefore = state.gardeners[deviceId]?.locationId ?? null;
 
     if (msg.type === 'join') {
       result = actions.createOrRestoreGardener(deviceId, state);
@@ -91,19 +113,33 @@ wss.on('connection', (ws) => {
     else if (msg.type === 'delete_pilgrim') result = actions.deleteGardener(deviceId, state);
     else if (msg.type === 'poll')   result = { ok: true };
 
+    if (typeof msg.seq === 'number') lastProcessedSeqByDevice.set(deviceId, msg.seq);
+
     if (result.ok) {
       saveState(state);
       if (msg.type === 'delete_pilgrim') {
         sendToClient(ws, { type: 'state', data: null });
+        broadcast(); // decorations can span arbitrary locations — not worth scoping for a rare action
+      } else {
+        const notify = new Set([deviceId]);
+        const gardenerAfter = state.gardeners[deviceId];
+        if (LOCATION_SCOPED_CURRENT.has(msg.type) && gardenerAfter?.locationId) {
+          for (const dId of nonWalkingDeviceIdsAtLocation(state, gardenerAfter.locationId)) notify.add(dId);
+        } else if (LOCATION_SCOPED_LEAVE.has(msg.type) && locBefore) {
+          for (const dId of nonWalkingDeviceIdsAtLocation(state, locBefore)) notify.add(dId);
+        }
+        broadcast(notify);
       }
-      broadcast();
     } else {
-      sendToClient(ws, { type: 'error', message: result.error });
+      sendToClient(ws, { type: 'error', message: result.error, seq: msg.seq });
     }
   });
 
   ws.on('close', () => {
-    if (deviceId) clients.delete(deviceId);
+    if (deviceId) {
+      clients.delete(deviceId);
+      lastProcessedSeqByDevice.delete(deviceId);
+    }
   });
 
   ws.on('error', () => {

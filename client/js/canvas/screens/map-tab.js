@@ -13,6 +13,8 @@ import { SEED_MAP, SEEDS } from '../../seeds.js';
 import { LOCATIONS, LOCATION_MAP, PATHS, PATH_MAP } from '../../world.js';
 import { getSelectedMapLocId } from '../../state.js';
 import { formatDuration } from '../../utils.js';
+import { liveTick } from '../../clock.js';
+import { getGrowthStage } from '../../growth.js';
 
 const MAP_W = 800;
 const MAP_H = 900;
@@ -282,12 +284,17 @@ export function renderMapTab(ctx, bounds, state) {
         });
         iy += 16;
 
-        // Pot memory dots
+        // Pot memory dots — forward-simulated from the departure snapshot using
+        // the same growth thresholds as the live location view, so a remembered
+        // pot doesn't look frozen at whatever stage it was in when you left.
         const memPots = (gardener.locationMemory ?? {})[selectedLocId];
         if (memPots && memPots.length > 0) {
+          const memTick = liveTick();
           let dotX = cardX + 10;
           for (const mp of memPots) {
-            const dotColor = mp.seedId ? (SEED_MAP[mp.seedId]?.color ?? T.muted) : null;
+            const stage = mp.seedId ? getGrowthStage(mp.lastPlantedTick, memTick) : null;
+            // A 'dead' pot has been auto-cleared server-side — show it as empty.
+            const dotColor = (mp.seedId && stage !== 'dead') ? (SEED_MAP[mp.seedId]?.color ?? T.muted) : null;
             if (dotColor) {
               drawCircle(ctx, dotX + 4, iy + 4, 4, dotColor, null);
             } else {

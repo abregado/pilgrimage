@@ -281,7 +281,7 @@ export function walk(deviceId, pathId, state, fast = false) {
   gardener.availableSeeds = [...poolSet];
 
   if (!gardener.locationMemory) gardener.locationMemory = {};
-  gardener.locationMemory[locId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId }));
+  gardener.locationMemory[locId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId, lastPlantedTick: p.lastPlantedTick }));
 
   if (fast) {
     if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy for fast travel');

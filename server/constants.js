@@ -7,7 +7,7 @@ export const BASE_ENERGY_MAX      = 8;
 export const ENERGY_BONUS_TIME    = 1;
 export const ENERGY_BONUS_EXPLORE = 1;
 export const ENERGY_BONUS_RULE    = 1;
-export const ENERGY_REGEN_TICKS   = 300;
+export const ENERGY_REGEN_TICKS   = 3;
 
 export const ENERGY_COST_BASE      = 1;
 export const ENERGY_COST_SEEDLING  = 2;

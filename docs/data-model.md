@@ -43,7 +43,7 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
   ruleSlots: number,        // always 4
   availableSeeds: string[]|null,  // populated on walk, cleared on continue
   locationMemory: {         // keyed by locationId
-    [locId]: [{id: string, seedId: string|null}]  // pot snapshot from last departure
+    [locId]: [{id: string, seedId: string|null, lastPlantedTick: number|null}]  // pot snapshot from last departure; lastPlantedTick lets the client forward-simulate growth stage locally
   },
   record: {
     wanderings: string[],   // locationId log (includes repeats)
@@ -124,7 +124,7 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
     speedBonus,
     rules: RuleView[],
     availableSeeds: string[]|null,
-    locationMemory: { [locId]: [{id, seedId}] }
+    locationMemory: { [locId]: [{id, seedId, lastPlantedTick}] }
   },
   location: LocationView|null,  // null when walking
   path: PathView|null,          // null when not walking
