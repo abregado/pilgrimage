@@ -2,22 +2,37 @@
 
 import { getTab } from '../state.js';
 
-const LEFT_W   = 220;
-const MIDDLE_W = 300;
-const TAB_H    = 44; // right column tab bar height
+const TAB_H = 44; // right column tab bar height
 
 export function isLandscape() {
   return window.innerWidth >= window.innerHeight;
 }
 
+// Narrow desktop windows (roughly square or taller-than-wide, ratio <= 8/9)
+// don't have room for a fixed 3-column layout — the Vision column folds into
+// the right tab bar instead and we run a 2-column layout.
+export function isNarrowDesktop() {
+  return window.innerWidth / window.innerHeight <= 8 / 9;
+}
+
 export function getColumns() {
   const W = window.innerWidth;
   const H = window.innerHeight;
-  const rightW = W - LEFT_W - MIDDLE_W;
+
+  if (isNarrowDesktop()) {
+    const middleW = Math.round(W / 2);
+    return {
+      left:   null,
+      middle: { x: 0,       y: 0, w: middleW,     h: H },
+      right:  { x: middleW, y: 0, w: W - middleW, h: H },
+    };
+  }
+
+  const colW = Math.round(W / 3);
   return {
-    left:   { x: 0,                y: 0, w: LEFT_W,   h: H },
-    middle: { x: LEFT_W,           y: 0, w: MIDDLE_W, h: H },
-    right:  { x: LEFT_W + MIDDLE_W, y: 0, w: rightW,   h: H },
+    left:   { x: 0,           y: 0, w: colW,         h: H },
+    middle: { x: colW,        y: 0, w: colW,         h: H },
+    right:  { x: colW * 2,    y: 0, w: W - colW * 2, h: H },
   };
 }
 

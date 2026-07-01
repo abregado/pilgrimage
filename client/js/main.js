@@ -9,7 +9,7 @@ import {
   getEmbarkingPathId, getEmbarkingPathIds, getEmbarkChosenSeed,
   startEmbarking, setEmbarkChosenSeed, clearEmbarking,
   setPendingPickSeed,
-  clearJourneyLog, setAutoArrive, getAutoArrive,
+  clearJourneyLog,
 } from './state.js';
 import { render, renderFrame } from './render.js';
 import { SEED_MAP } from './seeds.js';
@@ -104,6 +104,11 @@ function dispatch(action, data = {}) {
       render();
       break;
     }
+    case 'clear_map_selection': {
+      clearSelectedMapLoc();
+      render();
+      break;
+    }
     case 'queue_travel': {
       const pathIds = data.pathIds;
       const st = getState();
@@ -134,19 +139,22 @@ function dispatch(action, data = {}) {
       else sendAction({ type: 'walk', pathId });
       break;
     }
-    case 'embark_fast': {
+    case 'embark_dendriport': {
+      // Dendriport lands the gardener straight back in 'resting' — there's no
+      // 'walking' transition to hang a deferred pick_seed off of (unlike a
+      // normal embark), so the carried-seed swap is sent up front instead.
       const pathId  = getEmbarkingPathId();
       const pathIds = getEmbarkingPathIds();
       const chosenSeed  = getEmbarkChosenSeed();
       const currentSeed = getState()?.gardener?.seed ?? null;
       clearEmbarking();
-      if (chosenSeed !== currentSeed) setPendingPickSeed(chosenSeed);
-      if (pathIds && pathIds.length > 1) sendAction({ type: 'queue_travel', pathIds, fast: true });
-      else sendAction({ type: 'walk', pathId, fast: true });
+      if (chosenSeed !== currentSeed) sendAction({ type: 'swap', seedId: chosenSeed });
+      if (pathIds && pathIds.length > 1) sendAction({ type: 'dendriport_queue', pathIds });
+      else sendAction({ type: 'dendriport', pathId });
       break;
     }
-    case 'activate_fast_travel': {
-      sendAction({ type: 'activate_fast_travel' });
+    case 'activate_dendriport': {
+      sendAction({ type: 'activate_dendriport' });
       break;
     }
     case 'cancel_embark': {
@@ -181,11 +189,6 @@ function dispatch(action, data = {}) {
     }
     case 'toggle_music': {
       toggleMusic();
-      render();
-      break;
-    }
-    case 'toggle_auto_arrive': {
-      setAutoArrive(!getAutoArrive());
       render();
       break;
     }

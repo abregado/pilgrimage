@@ -43,7 +43,6 @@ function applyPot(view, { potId, seedId }, tick) {
     pot.settlingUntil = null;
     pot.lastPlantedTick = null;
     g.energy -= cost;
-    g.fastTravel = false;
     return view;
   }
 
@@ -56,7 +55,6 @@ function applyPot(view, { potId, seedId }, tick) {
   pot.decoratorCount = 0;
   pot.iDecorated = false;
   g.energy -= cost;
-  g.fastTravel = false;
   return view;
 }
 
@@ -67,7 +65,6 @@ function applyDecorate(view, { potId }) {
   if (!pot || !pot.seedId || pot.iDecorated) return null;
   pot.iDecorated = true;
   pot.decoratorCount = (pot.decoratorCount ?? 0) + 1;
-  g.fastTravel = false;
   return view;
 }
 
@@ -78,7 +75,6 @@ function applyUndecorate(view, { potId }) {
   if (!pot || !pot.iDecorated) return null;
   pot.iDecorated = false;
   pot.decoratorCount = Math.max(0, (pot.decoratorCount ?? 1) - 1);
-  g.fastTravel = false;
   return view;
 }
 
@@ -87,13 +83,11 @@ function applySwap(view, { seedId }) {
   if (g.state !== 'resting') return null;
   if (!seedId) {
     g.seed = null;
-    g.fastTravel = false;
     return view;
   }
   if (!view.location) return null;
   if (!loosePotPool(view.location).has(seedId)) return null;
   g.seed = seedId;
-  g.fastTravel = false;
   return view;
 }
 

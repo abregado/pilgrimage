@@ -5,7 +5,6 @@ import { tickAnims } from './canvas/anim.js';
 import { roundRect, drawText } from './canvas/draw.js';
 import { getTheme } from './canvas/theme.js';
 import { renderConnect }  from './canvas/screens/connect.js';
-import { renderArrival }  from './canvas/screens/arrival.js';
 import { renderLocation } from './canvas/screens/location.js';
 
 export function render() {
@@ -18,9 +17,8 @@ export function renderFrame(ctx, W, H) {
   tickAnims(performance.now());
 
   const screen = getScreen();
-  if (screen === 'connect')       renderConnect(ctx, W, H);
-  else if (screen === 'arrival')  renderArrival(ctx, W, H);
-  else                            renderLocation(ctx, W, H);
+  if (screen === 'connect') renderConnect(ctx, W, H);
+  else                      renderLocation(ctx, W, H);
 
   _drawErrorBanner(ctx, W);
 }

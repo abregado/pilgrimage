@@ -1,6 +1,6 @@
 import { getOrCreateDeviceId } from './utils.js';
 import { setState, getState, setConnected, updateScreenFromState, setTab,
-         getAutoArrive, clearJourneyLog, setLastError,
+         clearJourneyLog, setLastError,
          getPendingPickSeed, clearPendingPickSeed } from './state.js';
 import { setServerTick, liveTick } from './clock.js';
 import { render } from './render.js';
@@ -59,8 +59,9 @@ export function connect() {
       );
       const newState = gardener?.state ?? null;
 
-      // Auto-arrive: skip arrival screen
-      if (newState === 'arriving' && getAutoArrive()) {
+      // Arrival is instantaneous from the player's perspective — there is no
+      // arrival screen, so immediately confirm arrival server-side.
+      if (newState === 'arriving') {
         clearJourneyLog();
         sendAction({ type: 'continue' });
         _prevGardenerState = newState;
@@ -80,7 +81,6 @@ export function connect() {
           view.movementSpeed,
           gardener.speedBonus,
           view.rulesSpeedBonus,
-          gardener.fastTravel ?? false,
         );
         const pending = getPendingPickSeed();
         if (pending && pending !== gardener.seed &&

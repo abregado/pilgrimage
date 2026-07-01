@@ -3,17 +3,17 @@
 // Width: 300px.
 
 import { fillRect, strokeRect, roundRect, drawCircle, drawLine,
-         drawText, measureText, drawWrappedText, drawImage, withScroll, alpha } from '../draw.js';
+         drawText, measureText, drawWrappedText, drawImage, drawImageFlipped, withScroll, alpha } from '../draw.js';
 import { hit, hitCircle, beginScrollRegion, endScrollRegion, getScrollY } from '../input.js';
 import { pulse, bob } from '../anim.js';
 import { getTheme } from '../theme.js';
 import { getImg } from '../assets.js';
-import { getSelectedPotId, getSelectedNurserySeedId, getAutoArrive } from '../../state.js';
+import { getSelectedPotId, getSelectedNurserySeedId } from '../../state.js';
 import { SEED_MAP } from '../../seeds.js';
 import { liveTick } from '../../clock.js';
 import { formatDuration } from '../../utils.js';
 import { getGrowthStage, timeToNextStage, potEnergyCost } from '../../growth.js';
-import { FAST_TRAVEL_COST, FAST_TRAVEL_MULTI } from '/js/constants.js';
+import { FAST_TRAVEL_COST } from '/js/constants.js';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -56,11 +56,60 @@ function _drawButton(ctx, label, x, y, w, fillColor, textColor) {
   return BH;
 }
 
+// Vertical offset of the pots-wheel centre from the top of the column —
+// shared with _drawPotDrawer so the drawer sits directly below the wheel.
+const WHEEL_CY_OFFSET = 172;
+
+// ── Energy bar (top of Location/Travel views) ──────────────────────────────
+
+function _drawEnergyRow(ctx, col, y, gardener, tick, T) {
+  const energy    = gardener.energy    ?? 0;
+  const energyMax = gardener.energyMax ?? 0;
+  const energyRegenAt = gardener.energyRegenAt ?? null;
+
+  const pipR = 4, pipStep = 11;
+  const pipsW = energyMax * pipStep;
+  const labelText = `${energy}/${energyMax}`;
+  const labelFont = '11px Lora, Georgia, serif';
+  const labelW = measureText(ctx, labelText, labelFont);
+
+  let regenText = '';
+  let regenW = 0;
+  const regenFont = 'italic 10px Lora, Georgia, serif';
+  if (energyRegenAt !== null && energy < energyMax) {
+    const secs = Math.max(0, energyRegenAt - tick);
+    regenText = `+1 in ${formatDuration(secs)}`;
+    regenW = measureText(ctx, regenText, regenFont) + 6;
+  }
+
+  const totalW = pipsW + 4 + labelW + regenW;
+  let x = col.x + (col.w - totalW) / 2;
+
+  let pipX = x + pipR;
+  for (let i = 0; i < energyMax; i++) {
+    const filled = i < energy;
+    drawCircle(ctx, pipX, y, pipR, filled ? T.jade : T.surface2, T.border, 1);
+    pipX += pipStep;
+  }
+  x += pipsW + 4;
+
+  drawText(ctx, labelText, x, y, {
+    font: labelFont, color: T.muted, align: 'left', baseline: 'middle',
+  });
+  x += labelW;
+
+  if (regenText) {
+    drawText(ctx, regenText, x + 6, y, {
+      font: regenFont, color: T.accent, align: 'left', baseline: 'middle',
+    });
+  }
+}
+
 // ── Resting: pots wheel ───────────────────────────────────────────────────────
 
 function _drawPotsWheel(ctx, col, pots, tick, selectedPotId, T) {
   const cx = col.x + col.w / 2;
-  const cy = col.y + 160;
+  const cy = col.y + WHEEL_CY_OFFSET;
   const R  = 90;   // orbit radius
   const PR = 38;   // pot circle radius
   const n  = pots.length;
@@ -72,19 +121,17 @@ function _drawPotsWheel(ctx, col, pots, tick, selectedPotId, T) {
     const py    = cy + Math.sin(angle) * R;
 
     const isSel = pot.id === selectedPotId;
-    const fill  = isSel ? T.glaze : T.surface;
-    const sw    = isSel ? 2 : 1.5;
-    const stroke = isSel ? T.glaze : T.border;
 
-    // Settling: dashed stroke
+    // No default background/outline. A ring is only drawn to indicate
+    // selection (solid accent) or settling (dashed), never both filled.
     if (pot.settlingUntil !== null) {
       ctx.save();
       ctx.setLineDash([4, 3]);
-      drawCircle(ctx, px, py, PR, fill, stroke, sw);
+      drawCircle(ctx, px, py, PR, null, isSel ? T.glaze : T.border, isSel ? 2 : 1.5);
       ctx.setLineDash([]);
       ctx.restore();
-    } else {
-      drawCircle(ctx, px, py, PR, fill, stroke, sw);
+    } else if (isSel) {
+      drawCircle(ctx, px, py, PR, null, T.glaze, 2);
     }
 
     // Plant image
@@ -95,10 +142,10 @@ function _drawPotsWheel(ctx, col, pots, tick, selectedPotId, T) {
       drawImage(ctx, img, px - 32, py - 32, 64, 64);
     }
 
-    // Seed overlay (small icon bottom-right of pot)
+    // Seed overlay (small icon at 6 o'clock / bottom of pot)
     if (pot.seedId) {
       const seedImg = getImg(`seed_${pot.seedId}`);
-      if (seedImg) drawImage(ctx, seedImg, px + PR - 20, py + PR - 20, 20, 20);
+      if (seedImg) drawImage(ctx, seedImg, px - 10, py + PR - 14, 20, 20);
     }
 
     // Decorator dots (small circles around pot at radius 48)
@@ -129,7 +176,7 @@ function _drawPotDrawer(ctx, col, pot, tick, gardener, selectedNurserySeedId, T)
   const drawerX = col.x + DRAWER_PAD;
   const drawerW = col.w - DRAWER_PAD * 2;
   // top of drawer: wheel centre y + orbit R + pot R + gap
-  const drawerY = col.y + 160 + 90 + 38 + 16;
+  const drawerY = col.y + WHEEL_CY_OFFSET + 90 + 38 + 16;
 
   let curY = drawerY + DRAWER_PAD;
 
@@ -169,7 +216,8 @@ function _drawPotDrawer(ctx, col, pot, tick, gardener, selectedNurserySeedId, T)
     // Stage badge
     if (stage) {
       const stageColor = _stageColor(stage, T);
-      _drawPill(ctx, stage, drawerX + DRAWER_PAD + 30, curY, T, alpha(stageColor, 0.25), stageColor);
+      const stageLabel = stage.charAt(0).toUpperCase() + stage.slice(1);
+      _drawPill(ctx, stageLabel, drawerX + DRAWER_PAD + 30, curY, T, alpha(stageColor, 0.25), stageColor);
       curY += 18;
     }
 
@@ -409,36 +457,26 @@ function _drawTravelScene(ctx, col, path, travelAnimData, T) {
   const mx  = mapX(bx);
   const my  = mapY(by_) + bob(2, 3.5);
 
-  // Arrow/triangle meeple
-  const clr = T.accent;
-  ctx.save();
-  ctx.fillStyle = clr;
-  // Body circle
-  ctx.beginPath();
-  ctx.arc(mx, my - 5, 6, 0, Math.PI * 2);
-  ctx.fill();
-  // Downward triangle pointer
-  ctx.beginPath();
-  ctx.moveTo(mx - 5, my + 3);
-  ctx.lineTo(mx + 5, my + 3);
-  ctx.lineTo(mx, my + 13);
-  ctx.closePath();
-  ctx.fill();
-  // Direction arrow
-  ctx.fillStyle = clr;
-  ctx.beginPath();
-  if (goingRight) {
-    ctx.moveTo(mx + 8, my - 9);
-    ctx.lineTo(mx + 15, my - 5);
-    ctx.lineTo(mx + 8, my - 1);
+  // Pilgrim sprite — faces right by default, flipped when heading left
+  const pilgrimImg = getImg('pilgrim');
+  if (pilgrimImg) {
+    drawImageFlipped(ctx, pilgrimImg, mx, my - 6, 18, 28, !goingRight);
   } else {
-    ctx.moveTo(mx - 8, my - 9);
-    ctx.lineTo(mx - 15, my - 5);
-    ctx.lineTo(mx - 8, my - 1);
+    // Fallback: circle + triangle pointer
+    const clr = T.accent;
+    ctx.save();
+    ctx.fillStyle = clr;
+    ctx.beginPath();
+    ctx.arc(mx, my - 5, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(mx - 5, my + 3);
+    ctx.lineTo(mx + 5, my + 3);
+    ctx.lineTo(mx, my + 13);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
 
   // From / to labels
   const fromName = path.fromName || path.fromId || '';
@@ -456,57 +494,33 @@ function _drawTravelScene(ctx, col, path, travelAnimData, T) {
 }
 
 function _drawTravelControls(ctx, col, gardener, path, T) {
-  const ctrlY = col.y + 16;
+  const ctrlY = col.y + 30;
   const ctrlH = 32;
   const pad   = 10;
-  const third = Math.floor((col.w - pad * 2) / 3) - 4;
+  const half  = Math.floor((col.w - pad * 2 - 4) / 2);
 
-  const energy     = gardener.energy    ?? 0;
-  const fastTravel = gardener.fastTravel ?? false;
+  const energy = gardener.energy ?? 0;
 
   // ↩ Reverse
   const revX = col.x + pad;
-  roundRect(ctx, revX, ctrlY, third, ctrlH, 6, T.surface, T.border, 1);
-  drawText(ctx, '↩ Reverse', revX + third / 2, ctrlY + ctrlH / 2 + 1, {
+  roundRect(ctx, revX, ctrlY, half, ctrlH, 6, T.surface, T.border, 1);
+  drawText(ctx, '↩ Reverse', revX + half / 2, ctrlY + ctrlH / 2 + 1, {
     font: '12px Lora, Georgia, serif', color: T.text,
     align: 'center', baseline: 'middle',
   });
-  hit(revX, ctrlY, third, ctrlH, 'reverse', {});
+  hit(revX, ctrlY, half, ctrlH, 'reverse', {});
 
-  // Auto-arrive toggle
-  const autoArrive = getAutoArrive();
-  const aaX = revX + third + 4;
-  const aaFill = autoArrive ? alpha(T.jade, 0.3) : T.surface;
-  const aaStroke = autoArrive ? T.jade : T.border;
-  roundRect(ctx, aaX, ctrlY, third, ctrlH, 6, aaFill, aaStroke, 1);
-  drawText(ctx, `Auto${autoArrive ? ' ✓' : ''}`, aaX + third / 2, ctrlY + ctrlH / 2 + 1, {
-    font: '12px Lora, Georgia, serif', color: autoArrive ? T.jade : T.muted,
+  // ⚡ Dendriport — instantly finishes the trip (this leg + any queued legs)
+  const dendX = revX + half + 4;
+  const canDendriport = energy >= FAST_TRAVEL_COST;
+  const dendFill  = canDendriport ? T.accent : T.stone;
+  const dendColor = canDendriport ? T.bg : T.muted;
+  roundRect(ctx, dendX, ctrlY, half, ctrlH, 6, dendFill, null, 0);
+  drawText(ctx, '⚡ Dendriport', dendX + half / 2, ctrlY + ctrlH / 2 + 1, {
+    font: '12px Lora, Georgia, serif', color: dendColor,
     align: 'center', baseline: 'middle',
   });
-  hit(aaX, ctrlY, third, ctrlH, 'toggle_auto_arrive', {});
-
-  // ⚡ Fast
-  const fastX = aaX + third + 4;
-  let fastFill, fastColor, fastDisabled;
-  if (fastTravel) {
-    fastFill = alpha(T.accent, 0.2);
-    fastColor = T.accent;
-    fastDisabled = true;
-  } else if (energy >= FAST_TRAVEL_COST) {
-    fastFill = T.accent;
-    fastColor = T.bg;
-    fastDisabled = false;
-  } else {
-    fastFill = T.stone;
-    fastColor = T.muted;
-    fastDisabled = true;
-  }
-  roundRect(ctx, fastX, ctrlY, third, ctrlH, 6, fastFill, null, 0);
-  drawText(ctx, '⚡ Fast', fastX + third / 2, ctrlY + ctrlH / 2 + 1, {
-    font: '12px Lora, Georgia, serif', color: fastColor,
-    align: 'center', baseline: 'middle',
-  });
-  if (!fastDisabled) hit(fastX, ctrlY, third, ctrlH, 'activate_fast_travel', {});
+  if (canDendriport) hit(dendX, ctrlY, half, ctrlH, 'activate_dendriport', {});
 }
 
 function _drawETA(ctx, col, path, travelAnimData, gardener, T) {
@@ -577,6 +591,7 @@ export function renderMiddleCol(ctx, col, state, travelAnimData) {
   if (gardener.state === 'walking' && state.path) {
     const path = state.path;
 
+    _drawEnergyRow(ctx, col, col.y + 14, gardener, tick, T);
     _drawTravelControls(ctx, col, gardener, path, T);
     _drawTravelScene(ctx, col, path, travelAnimData, T);
     const afterEta = _drawETA(ctx, col, path, travelAnimData, gardener, T);
@@ -592,14 +607,16 @@ export function renderMiddleCol(ctx, col, state, travelAnimData) {
   const selectedPotId      = getSelectedPotId();
   const selectedNurserySeedId = getSelectedNurserySeedId();
 
-  // "Your pots" label
-  drawText(ctx, state.location.name ?? 'Your pots',
-    col.x + col.w / 2, col.y + 16, {
+  // Location name label
+  drawText(ctx, state.location.name ?? 'Location',
+    col.x + col.w / 2, col.y + 14, {
       font:  '11px Lora, Georgia, serif',
       color: T.muted,
       align: 'center',
       baseline: 'middle',
     });
+
+  _drawEnergyRow(ctx, col, col.y + 30, gardener, tick, T);
 
   // Pots wheel
   _drawPotsWheel(ctx, col, pots, tick, selectedPotId, T);

@@ -2,7 +2,7 @@ import {
   TICK_RATE, MOVEMENT_SPEED, SLEEP_THRESHOLD, ENERGY_REGEN_TICKS,
   SEEDLING_TICKS, GROWN_TICKS, FRUITING_TICKS, DEAD_TICKS,
   RULE_REFRESH_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
-  RULE_SAFE_TIME, INITIAL_RULE_SLOTS, FAST_TRAVEL_MULTI,
+  RULE_SAFE_TIME, INITIAL_RULE_SLOTS,
 } from './constants.js';
 import { PATH_MAP } from './world.js';
 import { SEEDS } from './seeds.js';
@@ -43,8 +43,7 @@ function tick(getState, saveState, broadcast) {
     const activeRules = (gardener.rules || []).filter(r => r.deletedTick === null);
     const completedCount = activeRules.filter(r => r.completed).length;
     const fullVisionBonus = completedCount === INITIAL_RULE_SLOTS ? SPEED_BONUS_FULL_VISION : 0;
-    const fastMulti = gardener.fastTravel ? FAST_TRAVEL_MULTI : 1;
-    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus) * fastMulti;
+    gardener.progress += MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedCount * SPEED_BONUS_PER_RULE + fullVisionBonus);
     changed = true;
   }
 
@@ -165,19 +164,16 @@ function tick(getState, saveState, broadcast) {
       }
       if (pot.seedId && pot.lastPlantedTick !== null &&
           (state.tick - pot.lastPlantedTick) >= DEAD_TICKS) {
-        for (const g of Object.values(state.gardeners)) {
+        // Dead plants are left in place (never auto-cleared) — just mark the
+        // seed-log so the record screen shows it's been seen dead.
+        for (const [gDeviceId, g] of Object.entries(state.gardeners)) {
           if (g.state === 'resting' && g.locationId === locId &&
               g.record.seedLog[pot.seedId] && !g.record.seedLog[pot.seedId].dead) {
             g.record.seedLog[pot.seedId].dead = true;
             changed = true;
+            notifySet.add(gDeviceId);
           }
         }
-        pot.seedId = null;
-        pot.lastPlantedTick = null;
-        pot.decorators = [];
-        pot.settlingUntil = null;
-        changed = true;
-        for (const dId of nonWalkingDeviceIdsAtLocation(state, locId)) notifySet.add(dId);
       }
     }
   }

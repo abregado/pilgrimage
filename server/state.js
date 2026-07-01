@@ -7,7 +7,7 @@ import {
   GROWN_TICKS, SPEED_BONUS_PER_RULE, SPEED_BONUS_FULL_VISION,
   INITIAL_RULE_SLOTS, RULE_SAFE_TIME,
 } from './constants.js';
-import { RULE_TEMPLATE_MAP } from './rules.js';
+import { RULE_TEMPLATE_MAP, pickNewRuleForLevel } from './rules.js';
 
 let _state = null;
 
@@ -29,7 +29,7 @@ function makeFreshLocations() {
   return locations;
 }
 
-const CURRENT_VERSION = 16;
+const CURRENT_VERSION = 17;
 
 export function computeEnergyMax(gardener, state) {
   let max = BASE_ENERGY_MAX;
@@ -121,6 +121,27 @@ function migrate(loaded) {
     }
     v = 16;
     loaded.version = 16;
+  }
+
+  if (v === 16) {
+    console.log('Migrating v16 → v17: removing "next to empty" vision rule type, dropping fastTravel flag (superseded by Dendriport)');
+    for (const gardener of Object.values(loaded.gardeners)) {
+      delete gardener.fastTravel;
+      if (!gardener.rules) continue;
+      for (let i = 0; i < gardener.rules.length; i++) {
+        const rule = gardener.rules[i];
+        if (rule.deletedTick !== null) continue;
+        if (!rule.templateId || !rule.templateId.endsWith('_next_empty')) continue;
+        const replacement = pickNewRuleForLevel(rule.level, gardener.rules);
+        if (replacement) {
+          gardener.rules[i] = replacement;
+        } else {
+          console.log(`  no replacement template available for gardener rule ${rule.id}; leaving inert`);
+        }
+      }
+    }
+    v = 17;
+    loaded.version = 17;
   }
 
   if (v !== CURRENT_VERSION) {
@@ -306,6 +327,7 @@ export function getGardenerView(deviceId) {
       level: rule.level,
       description: rule.description,
       difficulty: rule.difficulty,
+      seeds: template ? template.seeds : [],
       completed: rule.completed,
       safeUntil: rule.safeUntil ?? null,
       satisfiedCount,
@@ -336,7 +358,6 @@ export function getGardenerView(deviceId) {
       energyMax: gardener.energyMax,
       energyRegenAt,
       speedBonus: gardener.speedBonus ?? 1,
-      fastTravel: gardener.fastTravel ?? false,
       rules: rulesView,
       availableSeeds: gardener.availableSeeds ?? null,
       locationMemory: gardener.locationMemory ?? {},

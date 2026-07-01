@@ -11,7 +11,7 @@ import { formatDuration } from '../../utils.js';
 import { getImg } from '../../canvas/assets.js';
 import { startAnim, getAnimT, running } from '../../canvas/anim.js';
 import { isLightTheme } from '../../canvas/theme.js';
-import { FAST_TRAVEL_MULTI, FAST_TRAVEL_COST } from '/js/constants.js';
+import { FAST_TRAVEL_COST } from '/js/constants.js';
 import { renderLeftCol }   from './left-col.js';
 import { renderMiddleCol } from './middle-col.js';
 import { renderMapTab }    from './map-tab.js';
@@ -25,10 +25,9 @@ let _invalidateFn   = null;
 
 export function setInvalidateFn(fn) { _invalidateFn = fn; }
 
-export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus, fastTravel) {
+export function startTravelAnim(path, movementSpeed, speedBonus, rulesSpeedBonus) {
   stopTravelAnim();
-  const fastMulti = fastTravel ? FAST_TRAVEL_MULTI : 1;
-  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0)) * fastMulti;
+  const effectiveSpeed = movementSpeed * (speedBonus ?? 1) * (1 + (rulesSpeedBonus ?? 0));
   _travelAnimData = {
     progress:      path.progress,
     startTime:     performance.now(),
@@ -61,16 +60,21 @@ export function getTravelAnimData() {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TABS = ['map', 'record', 'info'];
-const TAB_LABELS = { map: 'Map', record: 'Record', info: 'Info' };
+const TABS_WIDE   = ['map', 'record', 'info'];
+const TABS_NARROW = ['vision', 'map', 'record', 'info'];
+const TAB_LABELS  = { vision: 'Vision', map: 'Map', record: 'Record', info: 'Info' };
 
-function drawTabBar(ctx, bounds, activeTab, T) {
+function _activeTabFor(tab, tabs) {
+  return tabs.includes(tab) ? tab : 'map';
+}
+
+function drawTabBar(ctx, bounds, activeTab, T, tabs = TABS_WIDE) {
   const { x, y, w, h } = bounds;
   fillRect(ctx, x, y, w, h, T.surface);
   drawLine(ctx, x, y + h, x + w, y + h, T.border, 1);
 
-  const tabW = Math.floor((w - 60) / TABS.length); // leave 60px for theme toggle
-  TABS.forEach((tab, i) => {
+  const tabW = Math.floor((w - 60) / tabs.length); // leave 60px for theme toggle
+  tabs.forEach((tab, i) => {
     const tx = x + i * tabW;
     const isActive = tab === activeTab;
     const color = isActive ? T.accent : T.muted;
@@ -111,17 +115,19 @@ export function renderLocation(ctx, W, H) {
 }
 
 function _renderDesktop(ctx, W, H, T, state, tab) {
-  const cols      = getColumns();
-  const activeTab = (tab === 'location' || tab === 'map') ? 'map'
-                  : tab === 'record' ? 'record' : 'info';
+  const cols  = getColumns();
+  const tabs  = cols.left ? TABS_WIDE : TABS_NARROW;
+  const activeTab = _activeTabFor(tab, tabs);
 
   // Column backgrounds + separators
   fillRect(ctx, 0, 0, W, H, T.bg);
   drawLine(ctx, cols.middle.x, 0, cols.middle.x, H, T.border, 1);
   drawLine(ctx, cols.right.x,  0, cols.right.x,  H, T.border, 1);
+  drawLine(ctx, W - 0.5, 0, W - 0.5, H, T.border, 1); // right edge of tab nav column
 
-  // Left column — always visions
-  renderLeftCol(ctx, cols.left, state);
+  // Left column — visions (wide desktop only; folded into the right tab bar
+  // as a 'Vision' tab on narrow desktop windows, see getColumns()).
+  if (cols.left) renderLeftCol(ctx, cols.left, state);
 
   // Middle column — pots or travel
   renderMiddleCol(ctx, cols.middle, state, getTravelAnimData());
@@ -130,11 +136,12 @@ function _renderDesktop(ctx, W, H, T, state, tab) {
   const tabBarBounds  = getTabBarBounds();
   const contentBounds = getRightContentBounds();
 
-  drawTabBar(ctx, tabBarBounds, activeTab, T);
+  drawTabBar(ctx, tabBarBounds, activeTab, T, tabs);
 
-  if (activeTab === 'map')    renderMapTab(ctx, contentBounds, state);
+  if (activeTab === 'vision')      renderLeftCol(ctx, contentBounds, state);
+  else if (activeTab === 'map')    renderMapTab(ctx, contentBounds, state);
   else if (activeTab === 'record') renderRecordTab(ctx, contentBounds, state);
-  else                        renderInfoTab(ctx, contentBounds);
+  else                             renderInfoTab(ctx, contentBounds);
 
   _renderEmbarkOverlay(ctx, W, H, T, state);
 }
@@ -142,7 +149,7 @@ function _renderDesktop(ctx, W, H, T, state, tab) {
 function _renderMobile(ctx, W, H, T, state, tab) {
   const page       = getMobilePage();
   const pageOffset = getMobilePageOffset();
-  const activeTab  = tab === 'location' ? 'map' : tab;
+  const activeTab  = _activeTabFor(tab, TABS_WIDE);
 
   // Render three pages translated
   const pages = [
@@ -194,9 +201,8 @@ function _renderEmbarkOverlay(ctx, W, H, T, state) {
 
   const baseSpeed = (state.movementSpeed ?? 3) * (gardener.speedBonus ?? 1) * (1 + (state.rulesSpeedBonus ?? 0));
   const pathLen = embarkPath?.length ?? 0;
-  const normalTicks = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
-  const fastTicks   = pathLen > 0 ? Math.ceil(pathLen / (baseSpeed * FAST_TRAVEL_MULTI)) : 0;
-  const canFast     = (gardener.energy ?? 0) >= (FAST_TRAVEL_COST ?? 1);
+  const normalTicks  = pathLen > 0 ? Math.ceil(pathLen / baseSpeed) : 0;
+  const canDendriport = (gardener.energy ?? 0) >= (FAST_TRAVEL_COST ?? 1);
   const chosenSeed  = getEmbarkChosenSeed();
 
   // Scrim
@@ -283,14 +289,14 @@ function _renderEmbarkOverlay(ctx, W, H, T, state) {
   });
   hit(embX, btnY, btnW, btnH, 'embark');
 
-  // Fast
-  const fastX = embX + btnW + gap;
-  const fastColor = canFast ? T.jade : T.stone;
-  roundRect(ctx, fastX, btnY, btnW, btnH, 8, fastColor);
-  drawText(ctx, `⚡ ~${formatDuration(fastTicks)}`, fastX + btnW / 2, btnY + btnH / 2 + 5, {
+  // Dendriport — instant teleport, no travel time
+  const dendX = embX + btnW + gap;
+  const dendColor = canDendriport ? T.jade : T.stone;
+  roundRect(ctx, dendX, btnY, btnW, btnH, 8, dendColor);
+  drawText(ctx, `⚡ Dendriport`, dendX + btnW / 2, btnY + btnH / 2 + 5, {
     font: '500 12px Lora, Georgia, serif', color: T.bg, align: 'center', baseline: 'middle',
   });
-  if (canFast) hit(fastX, btnY, btnW, btnH, 'embark_fast');
+  if (canDendriport) hit(dendX, btnY, btnW, btnH, 'embark_dendriport');
 }
 
 function _drawPageDots(ctx, W, H, page, T) {

@@ -1,8 +1,8 @@
 // Client-side state
 let _state = null;         // last GardenerView from server
 let _connected = false;    // true once any 'state' message received from server
-let _screen = 'connect';   // 'connect' | 'location' | 'arrival'
-let _tab = 'location';     // 'location' | 'map' | 'record' | 'info'
+let _screen = 'connect';   // 'connect' | 'location'
+let _tab = 'location';     // 'location' | 'map' | 'record' | 'info' | 'vision'
 
 let _selectedNurserySeedId = null;  // seed chosen for planting in nursery
 let _selectedPotId = null;          // pot selected in the circular widget
@@ -97,14 +97,9 @@ export function getPendingPickSeed()        { return _pendingPickSeed; }
 export function setPendingPickSeed(seedId)  { _pendingPickSeed = seedId; }
 export function clearPendingPickSeed()      { _pendingPickSeed = null; }
 
-// Auto-arrive preference (localStorage)
-export function getAutoArrive()    { return localStorage.getItem('autoArrive') === 'true'; }
-export function setAutoArrive(v)   { localStorage.setItem('autoArrive', v ? 'true' : 'false'); }
-
-// Derive screen from server state
+// Derive screen from server state. There is no dedicated 'arriving' screen —
+// network.js immediately confirms arrival server-side, so this never lingers.
 export function updateScreenFromState() {
   if (!_state) { _screen = 'connect'; return; }
-  const g = _state.gardener;
-  if (g.state === 'arriving') _screen = 'arrival';
-  else _screen = 'location';
+  _screen = 'location';
 }

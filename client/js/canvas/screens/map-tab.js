@@ -4,7 +4,7 @@
 
 import {
   fillRect, roundRect, drawCircle, drawLine,
-  drawText, drawImage, withClip,
+  drawText, drawImage, drawImageFlipped, withClip,
 } from '../../canvas/draw.js';
 import { hit, getMapPan } from '../../canvas/input.js';
 import { getTheme } from '../../canvas/theme.js';
@@ -154,8 +154,11 @@ export function renderMapTab(ctx, bounds, state) {
   // ── Drawing (clipped to bounds) ───────────────────────────────────────────
   withClip(ctx, bounds.x, bounds.y, bounds.w, bounds.h, () => {
 
-    // 1. Background
+    // 1. Background — also acts as a "clear selection" hit region, registered
+    // before the location nodes so a node's own hit region takes priority
+    // (topmost/last-registered wins — see input.js _hitTest).
     fillRect(ctx, bounds.x, bounds.y, bounds.w, bounds.h, T.bg);
+    hit(bounds.x, bounds.y, bounds.w, bounds.h, 'clear_map_selection', {});
 
     // 2. Paths
     for (const p of PATHS) {
@@ -189,13 +192,13 @@ export function renderMapTab(ctx, bounds, state) {
         if (seed) {
           const img = getImg(`seed_${seed.id}`);
           if (img) {
-            drawImage(ctx, img, cx - 14, cy - 14, 28, 28);
+            drawImage(ctx, img, cx - 28, cy - 28, 56, 56);
           } else {
             // Fallback: filled circle in seed color
-            drawCircle(ctx, cx, cy, 10, seed.color, null);
+            drawCircle(ctx, cx, cy, 20, seed.color, null);
           }
         } else {
-          drawCircle(ctx, cx, cy, 10, T.muted, null);
+          drawCircle(ctx, cx, cy, 20, T.muted, null);
         }
       } else {
         // Adjacent: small hollow circle
@@ -203,7 +206,8 @@ export function renderMapTab(ctx, bounds, state) {
       }
 
       // Hit region for all visible locations (canvas-space, no scroll region)
-      hit(cx - 16, cy - 16, 32, 32, 'select_map_loc', { locId: loc.id });
+      const hitR = isVisited ? 32 : 16;
+      hit(cx - hitR, cy - hitR, hitR * 2, hitR * 2, 'select_map_loc', { locId: loc.id });
     }
 
     // 4. Player marker
@@ -215,7 +219,12 @@ export function renderMapTab(ctx, bounds, state) {
         const frac = Math.min(1, pathView.progress / pathView.length);
         const mx = lx(fromLoc.x + (toLoc.x - fromLoc.x) * frac);
         const my = ly(fromLoc.y + (toLoc.y - fromLoc.y) * frac);
-        drawCircle(ctx, mx, my, 6, T.accent, null);
+        const pilgrimImg = getImg('pilgrim');
+        if (pilgrimImg) {
+          drawImageFlipped(ctx, pilgrimImg, mx, my, 14, 22, toLoc.x < fromLoc.x);
+        } else {
+          drawCircle(ctx, mx, my, 6, T.accent, null);
+        }
       }
     } else if (currentLocId && LOCATION_MAP[currentLocId]) {
       const loc = LOCATION_MAP[currentLocId];

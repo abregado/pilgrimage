@@ -58,19 +58,6 @@ function adjCheck(seedA, seedB) {
   };
 }
 
-function nextToEmptyCheck(seedId) {
-  return (pots, tick) => {
-    for (let i = 0; i < pots.length; i++) {
-      if (pots[i].seedId !== seedId) continue;
-      if (plantAge(pots[i], tick) < SEEDLING_TICKS) continue;
-      const prev = pots[(i - 1 + pots.length) % pots.length];
-      const next = pots[(i + 1) % pots.length];
-      if (!prev.seedId || !next.seedId) return true;
-    }
-    return false;
-  };
-}
-
 // seedA is flanked by two seedB neighbours; both plants must be GROWN+
 function sandwichCheck(seedA, seedB) {
   return (pots, tick) => {
@@ -127,17 +114,6 @@ for (const [a, b] of PAIRS) {
     `3 locations in the world have ${SEED_NAMES[a]} and ${SEED_NAMES[b]} planted adjacent to each other as seedlings or older`,
     [a, b],
     adjCheck(a, b),
-  ));
-}
-
-// ── Level 2c: next to an empty pot (find 8 locations; plant must be SEEDLING+)
-for (const seedId of ALL_SEEDS) {
-  RULE_TEMPLATES.push(makeTemplate(
-    `${seedId}_next_empty`,
-    2, 8,
-    `8 locations in the world have ${SEED_NAMES[seedId]} planted as a seedling or older, next to an empty pot`,
-    [seedId],
-    nextToEmptyCheck(seedId),
   ));
 }
 

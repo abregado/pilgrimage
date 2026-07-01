@@ -26,5 +26,4 @@ export const RULE_SAFE_TIME      = 86400;
 export const SPEED_BONUS_PER_RULE    = 0.25;
 export const SPEED_BONUS_FULL_VISION = 1.0;
 
-export const FAST_TRAVEL_COST  = 1;
-export const FAST_TRAVEL_MULTI = 200;
+export const FAST_TRAVEL_COST  = 1; // energy cost of a Dendriport teleport

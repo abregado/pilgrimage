@@ -2,14 +2,18 @@
 // Width: 220px. Fixed header, scrollable vision cards below.
 
 import { fillRect, strokeRect, roundRect, drawCircle, drawLine,
-         drawText, measureText, drawWrappedText, withScroll, alpha } from '../draw.js';
+         drawText, measureText, drawWrappedText, drawImage, withScroll, alpha } from '../draw.js';
 import { hit, beginScrollRegion, endScrollRegion, getScrollY } from '../input.js';
 import { pulse } from '../anim.js';
 import { getTheme } from '../theme.js';
+import { getImg } from '../assets.js';
+import { SEED_MAP } from '../../seeds.js';
 import { liveTick } from '../../clock.js';
 import { formatDuration } from '../../utils.js';
 
-const HEADER_H = 64;
+const ICONS_RESERVE = 36; // right-side space reserved for up to 2 seed icons
+
+const HEADER_H = 36;
 const CARD_PAD_X = 12;      // horizontal padding inside column
 const CARD_INNER_X = 12;    // extra x inside card for text
 const CARD_RADIUS = 8;
@@ -48,56 +52,14 @@ export function renderLeftCol(ctx, col, state) {
 
   const gardener = state.gardener;
   const tick = liveTick();
-  const energy    = gardener.energy    ?? 0;
-  const energyMax = gardener.energyMax ?? 0;
-  const energyRegenAt = gardener.energyRegenAt ?? null;
 
   // ── HEADER ─────────────────────────────────────────────────────────────────
 
-  // Location name
-  const locName = state.location?.name ?? '...';
-  drawText(ctx, locName, col.x + CARD_PAD_X, col.y + 22, {
+  drawText(ctx, 'Vision', col.x + CARD_PAD_X, col.y + 22, {
     font:  '500 15px Lora, Georgia, serif',
     color: T.text,
     align: 'left',
   });
-
-  // Energy pips
-  const pipR    = 5;
-  const pipStep = 14;
-  const pipY    = col.y + 44;
-  let pipX      = col.x + CARD_PAD_X + pipR;
-
-  for (let i = 0; i < energyMax; i++) {
-    const filled = i < energy;
-    drawCircle(ctx, pipX, pipY, pipR,
-      filled ? T.jade : T.surface2,
-      T.border, 1);
-    pipX += pipStep;
-  }
-
-  // Energy label
-  const labelX = col.x + CARD_PAD_X + energyMax * pipStep + 4;
-  const labelText = `${energy}/${energyMax}`;
-  drawText(ctx, labelText, labelX, pipY + 4, {
-    font:  '11px Lora, Georgia, serif',
-    color: T.muted,
-    align: 'left',
-    baseline: 'middle',
-  });
-
-  // Energy regen countdown
-  if (energyRegenAt !== null && energy < energyMax) {
-    const secs = Math.max(0, energyRegenAt - tick);
-    const regenText = `+1 in ${formatDuration(secs)}`;
-    const labelW = measureText(ctx, labelText, '11px Lora, Georgia, serif');
-    drawText(ctx, regenText, labelX + labelW + 6, pipY + 4, {
-      font:  'italic 11px Lora, Georgia, serif',
-      color: T.accent,
-      align: 'left',
-      baseline: 'middle',
-    });
-  }
 
   // ── VISION CARDS (scrollable) ──────────────────────────────────────────────
 
@@ -112,7 +74,7 @@ export function renderLeftCol(ctx, col, state) {
   // Pre-measure card heights so we know contentH before drawing
   const BADGE_DIAM  = 18;
   const DESC_FONT   = '13px Lora, Georgia, serif';
-  const DESC_MAX_W  = scrollW - CARD_PAD_X * 2 - CARD_INNER_X * 2 - BADGE_DIAM - 6;
+  const DESC_MAX_W  = scrollW - CARD_PAD_X * 2 - CARD_INNER_X * 2 - BADGE_DIAM - 6 - ICONS_RESERVE;
   const PROG_H      = 3;
   const FOOTER_H    = 16;
   const CARD_INNER_PAD = 10; // top/bottom inner padding
@@ -167,9 +129,10 @@ export function renderLeftCol(ctx, col, state) {
         const isSatisfied   = !!rule.satisfiedHere;
         const cardFill      = isCompleted ? alpha(T.surface2, 0.6) : T.surface2;
 
-        // Border: pulse between T.border and T.accent when satisfiedHere
+        // Border: pulse between T.border and T.accent when satisfiedHere —
+        // but a completed rule's border stays static, never pulsing.
         let cardStroke = T.border;
-        if (isSatisfied) {
+        if (isSatisfied && !isCompleted) {
           const p = pulse(2500);
           cardStroke = _lerpColor(T.border, T.accent, p);
         }
@@ -192,10 +155,24 @@ export function renderLeftCol(ctx, col, state) {
           baseline: 'middle',
         });
 
+        // ── Required seed icons (top-right of card) ────────────────────────────
+        const seedIcons = rule.seeds ?? [];
+        const iconY = cardY + CARD_INNER_PAD;
+        let iconX = cardX + cardW - CARD_INNER_X - seedIcons.length * 16;
+        for (const seedId of seedIcons) {
+          const seedImg = getImg(`seed_${seedId}`);
+          if (seedImg) {
+            drawImage(ctx, seedImg, iconX, iconY, 14, 14);
+          } else {
+            drawCircle(ctx, iconX + 7, iconY + 7, 7, SEED_MAP[seedId]?.color ?? T.muted, null, 0);
+          }
+          iconX += 16;
+        }
+
         // ── Description text ─────────────────────────────────────────────────
         const textX = cardX + CARD_INNER_X + BADGE_DIAM + 6;
         const textY = cardY + CARD_INNER_PAD + 4;
-        const textMaxW = cardW - CARD_INNER_X - BADGE_DIAM - 10 - CARD_INNER_X;
+        const textMaxW = cardW - CARD_INNER_X - BADGE_DIAM - 10 - CARD_INNER_X - ICONS_RESERVE;
         const descH = drawWrappedText(ctx, rule.description ?? '', textX, textY + 13,
           textMaxW, 17, { font: DESC_FONT, color: T.text });
 

@@ -107,6 +107,21 @@ export function drawImageCentered(ctx, img, cx, cy, w, h) {
   ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
 }
 
+// Draw img centered at (cx, cy), mirrored horizontally when flip is true —
+// used for directional sprites (e.g. the pilgrim) that face right by default.
+export function drawImageFlipped(ctx, img, cx, cy, w, h, flip = false) {
+  if (!img) return;
+  ctx.save();
+  if (flip) {
+    ctx.translate(cx, cy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  } else {
+    ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+  }
+  ctx.restore();
+}
+
 // Draw img tinted with color using compositing
 export function drawTintedImage(ctx, img, x, y, w, h, color) {
   if (!img) return;

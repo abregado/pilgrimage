@@ -38,6 +38,10 @@ export async function loadAssets() {
     tasks.push(_load(`nav_${name}`, `/assets/nav-${name}.svg`));
   }
 
+  // Pilgrim figure (travel scene + map marker) — faces right, flipped for
+  // leftward travel by the renderer.
+  tasks.push(_load('pilgrim', '/assets/pilgrim.svg'));
+
   // Optional assets (may not exist yet — fail silently)
   for (const key of ['meeple', 'meeple-travel', 'texture-surface',
                       'travel-bg', 'travel-mid', 'travel-fg',

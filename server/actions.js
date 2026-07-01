@@ -105,7 +105,6 @@ export function createOrRestoreGardener(deviceId, state) {
     rules,
     ruleSlots: INITIAL_RULE_SLOTS,
     speedBonus: 1.0,
-    fastTravel: false,
     availableSeeds: null,
     locationMemory: {},
     travelQueue: [],
@@ -139,7 +138,6 @@ export function decorate(deviceId, potId, state) {
     gardener.record.decoratedPots.push(potId);
   }
 
-  gardener.fastTravel = false;
   gardener.lastActiveTick = state.tick;
   return ok();
 }
@@ -167,7 +165,6 @@ export function pot(deviceId, potId, seedId, state) {
     potObj.lastPlantedTick = null;
     potObj.settlingUntil = null;
     gardener.energy -= cost;
-    gardener.fastTravel = false;
     gardener.lastActiveTick = state.tick;
     return ok();
   }
@@ -200,7 +197,6 @@ export function pot(deviceId, potId, seedId, state) {
   potObj.lastPlantedTick = state.tick;
   potObj.settlingUntil = state.tick + SETTLING_DURATION;
   gardener.energy -= cost;
-  gardener.fastTravel = false;
   gardener.lastActiveTick = state.tick;
 
   checkRuleCompletion(gardener, state);
@@ -214,7 +210,6 @@ export function swap(deviceId, targetSeedId, state) {
 
   if (!targetSeedId) {
     gardener.seed = null;
-    gardener.fastTravel = false;
     gardener.lastActiveTick = state.tick;
     return ok();
   }
@@ -239,7 +234,6 @@ export function swap(deviceId, targetSeedId, state) {
   if (!poolSet.has(targetSeedId)) return fail('Seed not available here');
 
   gardener.seed = targetSeedId;
-  gardener.fastTravel = false;
   gardener.lastActiveTick = state.tick;
   if (gardener.record.seedLog[targetSeedId]) {
     gardener.record.seedLog[targetSeedId].seed = true;
@@ -247,7 +241,7 @@ export function swap(deviceId, targetSeedId, state) {
   return ok();
 }
 
-export function walk(deviceId, pathId, state, fast = false) {
+export function walk(deviceId, pathId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
@@ -283,11 +277,6 @@ export function walk(deviceId, pathId, state, fast = false) {
   if (!gardener.locationMemory) gardener.locationMemory = {};
   gardener.locationMemory[locId] = locData.pots.map(p => ({ id: p.id, seedId: p.seedId, lastPlantedTick: p.lastPlantedTick }));
 
-  if (fast) {
-    if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy for fast travel');
-    gardener.energy -= FAST_TRAVEL_COST;
-  }
-  gardener.fastTravel = fast;
   gardener.pathFrom = locId;
   gardener.pathId = pathId;
   gardener.progress = 0;
@@ -299,14 +288,98 @@ export function walk(deviceId, pathId, state, fast = false) {
   return ok();
 }
 
-export function activateFastTravel(deviceId, state) {
+// Instantly move a resting gardener to destId — no walking state, no travel
+// time. Snapshots locationMemory for the location left behind, same as a
+// normal walk, so the map still shows what pots looked like there.
+function _teleportTo(gardener, destId, state) {
+  const originLocId = gardener.locationId;
+  if (originLocId) {
+    const locData = state.locations[originLocId];
+    if (locData) {
+      if (!gardener.locationMemory) gardener.locationMemory = {};
+      gardener.locationMemory[originLocId] = locData.pots.map(
+        p => ({ id: p.id, seedId: p.seedId, lastPlantedTick: p.lastPlantedTick }));
+    }
+  }
+  gardener.record.wanderings.push(destId);
+  gardener.state = 'resting';
+  gardener.locationId = destId;
+  gardener.pathId = null;
+  gardener.pathFrom = null;
+  gardener.progress = 0;
+  gardener.travelQueue = [];
+  gardener.encounteredThisTrip = [];
+  gardener.arrivedEncounters = null;
+  gardener.availableSeeds = null;
+}
+
+// Dendriport: instant single-leg teleport from resting.
+export function dendriport(deviceId, pathId, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  if (gardener.state !== 'resting') return fail('Must be resting');
+  if (!gardener.locationId) return fail('Not at a location');
+  if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy for Dendriport');
+
+  const path = PATH_MAP[pathId];
+  if (!path) return fail('Path not found');
+  if (path.fromId !== gardener.locationId && path.toId !== gardener.locationId) {
+    return fail('Path does not connect to current location');
+  }
+
+  const destId = path.fromId === gardener.locationId ? path.toId : path.fromId;
+  _teleportTo(gardener, destId, state);
+  gardener.energy -= FAST_TRAVEL_COST;
+  gardener.lastActiveTick = state.tick;
+  return ok();
+}
+
+// Dendriport across a queued multi-leg route: jumps straight to the final
+// destination, same energy cost as a single leg.
+export function dendriportQueue(deviceId, pathIds, state) {
+  const gardener = state.gardeners[deviceId];
+  if (!gardener) return fail('Gardener not found');
+  if (gardener.state !== 'resting') return fail('Must be resting');
+  if (!gardener.locationId) return fail('Not at a location');
+  if (!Array.isArray(pathIds) || pathIds.length === 0) return fail('No paths provided');
+  if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy for Dendriport');
+
+  let currentLocId = gardener.locationId;
+  for (const pathId of pathIds) {
+    const path = PATH_MAP[pathId];
+    if (!path) return fail(`Path not found: ${pathId}`);
+    if (path.fromId !== currentLocId && path.toId !== currentLocId) {
+      return fail(`Path ${pathId} does not connect from ${currentLocId}`);
+    }
+    currentLocId = path.fromId === currentLocId ? path.toId : path.fromId;
+  }
+
+  _teleportTo(gardener, currentLocId, state);
+  gardener.energy -= FAST_TRAVEL_COST;
+  gardener.lastActiveTick = state.tick;
+  return ok();
+}
+
+// Mid-walk Dendriport: instantly finishes the current leg plus any queued
+// legs, landing at the final destination of the whole route.
+export function activateDendriport(deviceId, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'walking') return fail('Not walking');
-  if (gardener.fastTravel) return fail('Fast travel already active');
-  if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy');
+  if (gardener.energy < FAST_TRAVEL_COST) return fail('Not enough energy for Dendriport');
+
+  const path = PATH_MAP[gardener.pathId];
+  if (!path) return fail('Path not found');
+  let destId = path.fromId === gardener.pathFrom ? path.toId : path.fromId;
+
+  for (const pid of (gardener.travelQueue || [])) {
+    const p = PATH_MAP[pid];
+    if (!p) break;
+    destId = p.fromId === destId ? p.toId : p.fromId;
+  }
+
+  _teleportTo(gardener, destId, state);
   gardener.energy -= FAST_TRAVEL_COST;
-  gardener.fastTravel = true;
   gardener.lastActiveTick = state.tick;
   return ok();
 }
@@ -401,7 +474,6 @@ export function undecorate(deviceId, potId, state) {
   const dpIdx = gardener.record.decoratedPots.indexOf(potId);
   if (dpIdx !== -1) gardener.record.decoratedPots.splice(dpIdx, 1);
 
-  gardener.fastTravel = false;
   gardener.lastActiveTick = state.tick;
   return ok();
 }
@@ -449,7 +521,7 @@ export function deleteGardener(deviceId, state) {
   return ok();
 }
 
-export function queueTravel(deviceId, pathIds, state, fast = false) {
+export function queueTravel(deviceId, pathIds, state) {
   const gardener = state.gardeners[deviceId];
   if (!gardener) return fail('Gardener not found');
   if (gardener.state !== 'resting') return fail('Must be resting');
@@ -467,5 +539,5 @@ export function queueTravel(deviceId, pathIds, state, fast = false) {
   }
 
   gardener.travelQueue = pathIds.slice(1);
-  return walk(deviceId, pathIds[0], state, fast);
+  return walk(deviceId, pathIds[0], state);
 }
