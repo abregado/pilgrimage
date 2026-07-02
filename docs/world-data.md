@@ -58,7 +58,7 @@ SVG viewport: 800 × 900.
 
 ## Paths
 
-21 paths. `length` is in metres; travel speed is 100 m/tick.
+21 paths. `length` is in metres; base travel speed is `MOVEMENT_SPEED` (3 m/tick), modified by `speedBonus` and completed-rule bonuses — see `docs/game-loop.md` and `docs/constants.md`.
 
 | id                            | from                 | to                   | length |
 |-------------------------------|----------------------|----------------------|--------|

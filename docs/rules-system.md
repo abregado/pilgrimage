@@ -75,18 +75,6 @@ Description says "as seedlings or older".
 
 ---
 
-### Level 2c — Next to empty (difficulty 8)
-
-`{seedId}_next_empty`
-
-`check`: a pot with `seedId` at SEEDLING+ has at least one empty neighbour (prev or next, wrapping).
-
-Description says "as a seedling or older".
-
-15 templates.
-
----
-
 ### Level 3a — Sandwich (difficulty 3)
 
 `{b}_sandwiches_{a}` — check: both neighbours of some `a` pot (GROWN+) are `b` (GROWN+).  
@@ -109,6 +97,8 @@ Description says "as a grown plant or older".
 15 templates.
 
 ---
+
+90 templates total (15 + 15 + 15 + 30 + 15). A sixth type, "next to empty" (`{seedId}_next_empty`, L2, difficulty 8), existed through v16 and was removed in the v16→v17 migration (`server/state.js`) — any gardener holding it gets a same-level replacement picked via `pickNewRuleForLevel`.
 
 ## Initial rule assignment (`pickInitialRules(originSeedId)`)
 

@@ -41,12 +41,12 @@ Two walkers on the same path, heading in **opposite directions**, cross when the
 
 ---
 
-## Step 5 — Settling expiry + dead-pot cleanup
+## Step 5 — Settling expiry + dead-pot marking
 
 - Pots whose `settlingUntil <= tick`: clear `settlingUntil`.
-- Pots whose `age >= DEAD_TICKS (172800)`:
-  - Mark `dead = true` in seedLog of any resting gardener at that location.
-  - Clear `seedId`, `lastPlantedTick`, `decorators`, `settlingUntil`.
+- Pots whose `age >= DEAD_TICKS (172800)`: mark `dead = true` in the seedLog of any resting gardener at that location (once, when the flag transitions from unset).
+
+Dead plants are **left in place** — they are never auto-cleared. A dead pot still holds its `seedId`/`lastPlantedTick`; `potEnergyCost` treats it as `ENERGY_COST_BASE` (see `docs/energy.md`), and the client (`getGrowthStage`) renders it with the `_dead` sprite. Only re-planting or clearing it (via `pot`) actually empties it.
 
 ---
 
@@ -62,7 +62,7 @@ Growth stage thresholds (age in ticks):
 | seedling | 1800 – 21599          |
 | grown    | 21600 – 129599        |
 | fruiting | 129600 – 172799       |
-| dead     | ≥ 172800 (then wiped) |
+| dead     | ≥ 172800              |
 
 ---
 
@@ -108,10 +108,11 @@ If any `changed` flag was set: `saveState(state)`.
 
 `broadcast(notifySet)` sends a fresh `GardenerView` only to clients in `notifySet`.
 
-`notifySet` is built each tick:
-- All **non-walking** gardeners are always included (energy regen, rule changes, etc.).
-- **Walking** gardeners are only added when something meaningful happens to them: arrival (step 3), encounter (step 4), or rule completion (step 8).
+`notifySet` is built each tick from whichever steps actually changed something for that gardener — there's no blanket "always include non-walking gardeners" rule. In practice:
+- Steps 5 (settling/dead-pot) and 6 (seed stage observation) only ever add **non-walking** gardeners, since they're scoped to gardeners physically at a location.
+- Steps 7 (energy regen/energyMax sync), 8 (rule refresh/completion/un-completion), and 9 (sleep) run over **all** gardeners regardless of state — so a walking gardener can occasionally get a state update mid-trip when their energy regenerates, their vision changes, or they fall asleep (sleep only applies to `resting`, so in practice this one never fires for a walker).
+- Steps 3 (arrival) and 4 (encounter) add the specific gardener(s) involved.
 
-This means walking clients receive no network traffic for routine progress ticks — the client animates the meeple locally using `requestAnimationFrame` with `startTravelAnim()` exported from `location.js`.
+The net effect: walking clients receive no network traffic for *routine progress ticks* (step 2 never adds to `notifySet`), but they aren't fully silent either — the client animates the meeple locally using `requestAnimationFrame` via `startTravelAnim()` (`client/js/canvas/screens/location.js`) regardless of whether a broadcast lands mid-trip.
 
 Action-triggered broadcasts (player clicks) still call `broadcast()` with no filter → all clients updated.

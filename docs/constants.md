@@ -21,7 +21,9 @@ All values in ticks (1 tick = 1 second) unless noted.
 | `SEEDLING_TICKS`| 1800     | seedling      | 30 min      |
 | `GROWN_TICKS`   | 21600    | grown         | 6 h         |
 | `FRUITING_TICKS`| 129600   | fruiting      | 36 h        |
-| `DEAD_TICKS`    | 172800   | dead (wiped)  | 48 h        |
+| `DEAD_TICKS`    | 172800   | dead          | 48 h        |
+
+Dead pots are left in place, never auto-cleared — see `docs/game-loop.md`.
 
 ## Energy
 
@@ -55,12 +57,13 @@ Energy cost applies to both **planting** and **clearing**. Potting is now instan
 | `SPEED_BONUS_PER_RULE`  | 0.25  | +25% per completed rule (additive in movement formula) |
 | `SPEED_BONUS_FULL_VISION`| 1.0  | +100% when all 4 rules are completed simultaneously    |
 
-## Fast travel
+## Dendriport (instant teleport)
 
-| Constant            | Value | Meaning                                           |
-|---------------------|-------|---------------------------------------------------|
-| `FAST_TRAVEL_COST`  | 1     | Energy cost to activate fast travel               |
-| `FAST_TRAVEL_MULTI` | 200   | Speed multiplier applied while fast travel active |
+| Constant            | Value | Meaning                                                      |
+|---------------------|-------|---------------------------------------------------------------|
+| `FAST_TRAVEL_COST`  | 1     | Energy cost per Dendriport teleport (dendriport / dendriport_queue / activate_dendriport) |
+
+There is no speed-multiplier constant — Dendriport instantly teleports the gardener rather than boosting movement speed, and each use is a one-shot charge (nothing persists on the gardener afterward, unlike the old `fastTravel` flag it replaced).
 
 ### Speed formula
 

@@ -1,6 +1,6 @@
 # Energy System
 
-Energy is the resource that gates planting, clearing, and fast travel. This document covers how it is spent, regenerated, and how the maximum grows over time.
+Energy is the resource that gates planting, clearing, and Dendriport teleporting. This document covers how it is spent, regenerated, and how the maximum grows over time.
 
 ---
 
@@ -13,11 +13,11 @@ Energy is the resource that gates planting, clearing, and fast travel. This docu
 | `ENERGY_BONUS_TIME`    | 1     | +max per time milestone (day, week)          |
 | `ENERGY_BONUS_EXPLORE` | 1     | +max for visiting all 15 locations           |
 | `ENERGY_BONUS_RULE`    | 1     | +max per completed, non-deleted vision rule  |
-| `FAST_TRAVEL_COST`     | 1     | Energy to activate fast travel               |
+| `FAST_TRAVEL_COST`     | 1     | Energy per Dendriport teleport               |
 | `ENERGY_COST_BASE`     | 1     | Plant/clear cost: empty, dead, or seed-stage |
 | `ENERGY_COST_SEEDLING` | 2     | Plant/clear cost: seedling-stage pot         |
-| `ENERGY_COST_GROWN`    | 10    | Plant/clear cost: grown-stage pot            |
-| `ENERGY_COST_FRUITING` | 12    | Plant/clear cost: fruiting-stage pot         |
+| `ENERGY_COST_GROWN`    | 6     | Plant/clear cost: grown-stage pot            |
+| `ENERGY_COST_FRUITING` | 10    | Plant/clear cost: fruiting-stage pot         |
 
 ---
 
@@ -46,7 +46,7 @@ Every tick the game loop:
 1. Recomputes `energyMax` for every gardener and clamps `energy` if needed.
 2. Checks `state.tick % ENERGY_REGEN_TICKS === 0`. When true, every gardener below their max gains +1 energy.
 
-Regen fires for all gardeners regardless of state (resting, walking, arriving, sleeping).
+Regen fires for all gardeners regardless of state (resting, walking, arriving, sleeping). Unlike routine walking-progress ticks, an energyMax change or a regen tick does add a gardener to that tick's `notifySet` — so a walking gardener can occasionally receive a state update mid-trip for this reason (see `docs/game-loop.md`, step 11).
 
 ### `energyRegenAt` (client countdown)
 
@@ -56,7 +56,7 @@ Regen fires for all gardeners regardless of state (resting, walking, arriving, s
 energyRegenAt = (Math.floor(tick / ENERGY_REGEN_TICKS) + 1) * ENERGY_REGEN_TICKS
 ```
 
-This is `null` when the gardener is already at max. The client uses it to show a live countdown on the energy bar.
+This is `null` when the gardener is already at max. The client uses it (via `client/js/clock.js`) to extrapolate a live countdown between broadcasts, shown on the energy bar.
 
 ---
 
@@ -64,25 +64,28 @@ This is `null` when the gardener is already at max. The client uses it to show a
 
 ### Potting (`server/actions.js → pot`)
 
-Planting a seed into a pot or clearing a pot both cost energy based on the **current growth stage of the pot being acted on**:
+Planting a seed into a pot or clearing a pot both cost energy based on the **current growth stage of the pot being acted on** (age in ticks since `lastPlantedTick`):
 
-| Pot state                      | Cost                   |
-|-------------------------------|------------------------|
-| Empty / dead / seed stage      | `ENERGY_COST_BASE` (1) |
-| Seedling stage                 | `ENERGY_COST_SEEDLING` (2) |
-| Grown stage                    | `ENERGY_COST_GROWN` (6) |
-| Fruiting stage                 | `ENERGY_COST_FRUITING` (10) |
+| Pot state                          | Cost                          |
+|-------------------------------------|--------------------------------|
+| Empty / no seed                     | `ENERGY_COST_BASE` (1)         |
+| Seed stage (age < 1800)             | `ENERGY_COST_BASE` (1)         |
+| Seedling (1800 ≤ age < 21600)       | `ENERGY_COST_SEEDLING` (2)     |
+| Grown (21600 ≤ age < 129600)        | `ENERGY_COST_GROWN` (6)        |
+| Fruiting (129600 ≤ age < 172800)    | `ENERGY_COST_FRUITING` (10)    |
+| Dead (age ≥ 172800)                 | `ENERGY_COST_BASE` (1)         |
 
-The cost is computed by `potEnergyCost(potObj, tick)` in both `server/actions.js` and `client/js/screens/location.js` (for button labels and disabled state). The action guard rejects the request if `gardener.energy < cost`.
+The cost is computed by `potEnergyCost(potObj, tick)` in `server/actions.js`, mirrored client-side by `potEnergyCost(pot, tick)` in `client/js/growth.js` (used for button labels, disabled state, and optimistic prediction in `client/js/predict.js`). The action guard rejects the request if `gardener.energy < cost`.
 
-### Fast Travel (`server/actions.js → walk` / `activateFastTravel`)
+### Dendriport (`server/actions.js → dendriport` / `dendriportQueue` / `activateDendriport`)
 
-Fast travel costs `FAST_TRAVEL_COST` (1) energy and can be activated two ways:
+Dendriport is an instant teleport (see `docs/actions.md`), not a speed boost. Each of the three Dendriport actions costs a flat `FAST_TRAVEL_COST` (1) energy, deducted at the moment of the teleport:
 
-- **At embark** (`walk` action with `fast: true`, or `queue_travel` with `fast: true`): energy is deducted inside `walk()` before the gardener starts moving. Fails if `energy < FAST_TRAVEL_COST`.
-- **Mid-travel** (`activate_fast_travel` action): deducts energy from a walking gardener. Fails if already active or insufficient energy.
+- **`dendriport`** — from resting, teleport across one path.
+- **`dendriportQueue`** — from resting, teleport straight to the end of a multi-leg route (one charge regardless of route length).
+- **`activateDendriport`** — mid-walk, instantly finish the current leg plus any queued legs.
 
-`gardener.fastTravel` is set to `true` in both cases and resets to `false` whenever the gardener takes any resting action (potting, swapping seed, decorating, undecorating).
+Nothing persists on the gardener afterward — there is no flag equivalent to the old `gardener.fastTravel`. Each use is a standalone charge.
 
 ---
 
@@ -94,41 +97,42 @@ New gardeners are created with `energy = BASE_ENERGY_MAX` (`createOrRestoreGarde
 
 ## Client Display
 
-### Energy bar (`client/js/screens/location.js → renderEnergyBar`)
+### Energy bar (`client/js/canvas/screens/middle-col.js → _drawEnergyRow`)
 
-Shown at the top of the Location tab (both resting and walking states):
+Drawn at the top of the middle column in both resting and walking states:
 - One pip per `energyMax`, filled pips up to `energy`.
 - `energy / energyMax` numeric label.
-- Regen countdown: "+1 in Xm Ys" derived from `energyRegenAt - tick`, hidden when full.
+- Regen countdown: "+1 in Xm Ys" derived from `energyRegenAt - liveTick()`, hidden when full.
 
-### Pot buttons (`client/js/screens/location.js`)
+### Pot drawer (`client/js/canvas/screens/middle-col.js → _drawPotDrawer`)
 
-Plant and clear buttons show the energy cost inline (e.g. "Plant Mirewort · 2 energy") and are `disabled` when `gardener.energy < cost`. The client computes the cost with the same `potEnergyCost` logic as the server.
+Plant and clear buttons show the energy cost inline (e.g. "Plant Mirewort · 2 energy", "Clear · 6 energy") and render with a muted fill when `gardener.energy < cost` (the hit region is still registered — the server guard is authoritative). The client computes the cost with the same `potEnergyCost` logic as the server (`client/js/growth.js`).
 
-### Embark picker (`client/js/screens/location.js`)
+### Embark overlay (`client/js/canvas/screens/location.js → _renderEmbarkOverlay`)
 
-The "⚡ Fast →" embark button shows the fast-travel time estimate and the `FAST_TRAVEL_COST` label. It is `disabled` when `gardener.energy < FAST_TRAVEL_COST`.
+The "⚡ Dendriport" button in the embark sheet is enabled only when `gardener.energy >= FAST_TRAVEL_COST`.
 
-### Record tab (`client/js/screens/record.js`)
+### Travel controls (`client/js/canvas/screens/middle-col.js → _drawTravelControls`)
 
-Shows current `energy / energyMax` and a milestone checklist:
+The "⚡ Dendriport" button shown while walking (finishes the trip instantly) is enabled only when `gardener.energy >= FAST_TRAVEL_COST`.
 
-| Milestone      | Condition                        | Bonus         |
-|----------------|----------------------------------|---------------|
-| Day one        | `ageTicks >= 86400`              | +1 max energy |
-| One week       | `ageTicks >= 604800`             | +1 max energy |
-| Explorer       | All 15 locations visited         | +1 max energy |
-| Per rule       | Each completed non-deleted rule  | +1 max energy |
+### Record tab (`client/js/canvas/screens/record-tab.js`)
+
+Shows current `energy / energyMax` and a milestone checklist. Note: the checklist only lists three items (Day one, One week, Explorer) — the per-completed-rule bonus is not shown as a separate checklist row, only reflected implicitly in the displayed `energyMax`. The bonus labels currently shown in this UI ("+3 max energy", "+5 max energy") are stale display text left over from an earlier balance pass; the actual bonus per milestone is `+1` (`ENERGY_BONUS_TIME` / `ENERGY_BONUS_EXPLORE`, see constants table above).
 
 ---
 
 ## Files Involved
 
-| File                                    | Role                                                          |
-|-----------------------------------------|---------------------------------------------------------------|
-| `server/constants.js`                   | All energy constants (single source of truth)                |
-| `server/state.js`                       | `computeEnergyMax()`, `energyRegenAt` calculation in `getGardenerView` |
-| `server/gameLoop.js`                    | Step 7: regen tick, energyMax sync, energy clamping          |
-| `server/actions.js`                     | `pot` (plant/clear cost), `walk` / `activateFastTravel` (fast travel cost), `createOrRestoreGardener` (initial energy) |
-| `client/js/screens/location.js`         | Energy bar, pot button costs/disabled state, embark fast button |
-| `client/js/screens/record.js`           | Milestone display                                             |
+| File                                              | Role                                                          |
+|-----------------------------------------------------|-----------------------------------------------------------------|
+| `server/constants.js`                             | All energy constants (single source of truth)                |
+| `server/state.js`                                 | `computeEnergyMax()`, `energyRegenAt` calculation in `getGardenerView` |
+| `server/gameLoop.js`                              | Step 7: regen tick, energyMax sync, energy clamping          |
+| `server/actions.js`                               | `pot` (plant/clear cost), `dendriport` / `dendriportQueue` / `activateDendriport` (teleport cost), `createOrRestoreGardener` (initial energy) |
+| `client/js/growth.js`                             | Mirrors `potEnergyCost` for the client                        |
+| `client/js/predict.js`                            | Optimistic energy deduction on predicted `pot` actions        |
+| `client/js/clock.js`                              | Live countdown extrapolation between broadcasts               |
+| `client/js/canvas/screens/middle-col.js`          | Energy bar, pot button costs, travel Dendriport button        |
+| `client/js/canvas/screens/location.js`            | Embark overlay Dendriport button                               |
+| `client/js/canvas/screens/record-tab.js`          | Milestone display                                              |

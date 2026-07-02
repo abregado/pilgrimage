@@ -8,7 +8,7 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
 
 ```js
 {
-  version: 14,         // integer; migration key
+  version: 17,         // integer; migration key
   tick: number,        // monotonically increasing, 1 per second
   gardeners: {         // keyed by deviceId (UUID string)
     [deviceId]: Gardener
@@ -45,6 +45,7 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
   locationMemory: {         // keyed by locationId
     [locId]: [{id: string, seedId: string|null, lastPlantedTick: number|null}]  // pot snapshot from last departure; lastPlantedTick lets the client forward-simulate growth stage locally
   },
+  travelQueue: string[],    // remaining pathIds after the current leg (queue_travel / dendriport_queue)
   record: {
     wanderings: string[],   // locationId log (includes repeats)
     seedLog: {              // keyed by seedId
@@ -57,11 +58,13 @@ All shapes are plain JSON objects. The server's authoritative state lives in `_s
 
 ### energyMax milestones (computed in `computeEnergyMax`)
 
-- Base: 10
-- +3 after 1 day (`age >= 86400` ticks)
-- +3 after 1 week (`age >= 604800` ticks)
-- +5 if all 15 locations visited
-- +5 per completed, non-deleted vision rule
+- Base: 8
+- +1 after 1 day (`age >= 86400` ticks)
+- +1 after 1 week (`age >= 604800` ticks)
+- +1 if all 15 locations visited
+- +1 per completed, non-deleted vision rule
+
+See `docs/constants.md` and `docs/energy.md` for the underlying constants.
 
 ---
 
@@ -124,7 +127,9 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
     speedBonus,
     rules: RuleView[],
     availableSeeds: string[]|null,
-    locationMemory: { [locId]: [{id, seedId, lastPlantedTick}] }
+    locationMemory: { [locId]: [{id, seedId, lastPlantedTick}] },
+    travelQueue: string[],       // remaining pathIds after the current leg
+    lastProcessedSeq: number,    // highest client action `seq` the server has processed (added by broadcast(), not getGardenerView() — see ws-protocol.md)
   },
   location: LocationView|null,  // null when walking
   path: PathView|null,          // null when not walking
@@ -184,6 +189,7 @@ seedPool = origin seed + carried seed + grown/fruiting pots + seeds carried by o
 ```js
 // Active rule:
 { id, templateId, level, description, difficulty,
+  seeds: string[],   // seedIds involved (drawn as icons on the vision card)
   completed, safeUntil,
   satisfiedCount, satisfiedHere,
   refreshing: false, refreshAt: null }
