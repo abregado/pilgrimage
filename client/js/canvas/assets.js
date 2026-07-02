@@ -42,14 +42,6 @@ export async function loadAssets() {
   // leftward travel by the renderer.
   tasks.push(_load('pilgrim', '/assets/pilgrim.svg'));
 
-  // Optional assets (may not exist yet — fail silently)
-  for (const key of ['meeple', 'meeple-travel', 'texture-surface',
-                      'travel-bg', 'travel-mid', 'travel-fg',
-                      'divider-floral', 'pip-leaf', 'connect-bg']) {
-    tasks.push(_load(key, `/assets/${key}.png`).catch(() => {}));
-    tasks.push(_load(`${key}_svg`, `/assets/${key}.svg`).catch(() => {}));
-  }
-
   await Promise.all(tasks);
 }
 
