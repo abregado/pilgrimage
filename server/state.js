@@ -1,5 +1,5 @@
 import { SEEDS, SEED_MAP } from './seeds.js';
-import { LOCATIONS, LOCATION_MAP, PATH_MAP } from './world.js';
+import { LOCATIONS, LOCATION_MAP, PATH_MAP, getPathsForLocation } from './world.js';
 import {
   MOVEMENT_SPEED, BASE_ENERGY_MAX,
   ENERGY_BONUS_TIME, ENERGY_BONUS_EXPLORE, ENERGY_BONUS_RULE,
@@ -42,6 +42,16 @@ export function computeEnergyMax(gardener, state) {
     max += gardener.rules.filter(r => r.completed && r.deletedTick === null).length * ENERGY_BONUS_RULE;
   }
   return max;
+}
+
+// Effective progress-per-tick for a walking gardener, mirroring the speed
+// formula in gameLoop.js step 2. Used to let clients extrapolate other
+// travelers' positions between infrequent nearbyTraffic refreshes.
+function effectiveSpeed(gardener) {
+  const activeRules = (gardener.rules || []).filter(r => r.deletedTick === null);
+  const completedRules = activeRules.filter(r => r.completed).length;
+  const fullVisionBonus = completedRules === INITIAL_RULE_SLOTS ? SPEED_BONUS_FULL_VISION : 0;
+  return MOVEMENT_SPEED * (gardener.speedBonus ?? 1) * (1 + completedRules * SPEED_BONUS_PER_RULE + fullVisionBonus);
 }
 
 function migrate(loaded) {
@@ -261,6 +271,40 @@ export function getGardenerView(deviceId) {
     };
   }
 
+  // Build nearby path traffic — other gardeners currently walking on any path
+  // touching a "location of interest": the gardener's current location while
+  // resting, or both endpoints of the current leg while walking (origin +
+  // destination). Deliberately anonymous (no id/seed) and only refreshed on
+  // broadcasts the gardener already receives (actions, or a client-sent
+  // `poll`) rather than every tick, so it doesn't undo the game loop's
+  // no-routine-broadcast optimization for walking gardeners — the client
+  // extrapolates position between refreshes using `speed`.
+  const locsOfInterest = new Set();
+  if (gardener.locationId) locsOfInterest.add(gardener.locationId);
+  if (gardener.state === 'walking' && gardener.pathId) {
+    const currentPath = PATH_MAP[gardener.pathId];
+    if (currentPath) {
+      locsOfInterest.add(currentPath.fromId);
+      locsOfInterest.add(currentPath.toId);
+    }
+  }
+  const pathsOfInterest = new Map();
+  for (const locId of locsOfInterest) {
+    for (const p of getPathsForLocation(locId)) pathsOfInterest.set(p.id, p);
+  }
+  const nearbyTraffic = [];
+  if (pathsOfInterest.size > 0) {
+    for (const [dId, g] of Object.entries(_state.gardeners)) {
+      if (dId === deviceId || g.state !== 'walking' || !pathsOfInterest.has(g.pathId)) continue;
+      nearbyTraffic.push({
+        pathId: g.pathId,
+        pathFrom: g.pathFrom,
+        progress: g.progress,
+        speed: effectiveSpeed(g),
+      });
+    }
+  }
+
   // Build arrival data
   let arrivalView = null;
   if (gardener.state === 'arriving' && gardener.locationId) {
@@ -366,6 +410,7 @@ export function getGardenerView(deviceId) {
     location: locationView,
     path: pathView,
     arrival: arrivalView,
+    nearbyTraffic,
     record: {
       wanderings: record.wanderings,
       seedLog: record.seedLog,

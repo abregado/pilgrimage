@@ -14,6 +14,7 @@ import { liveTick } from '../../clock.js';
 import { formatDuration } from '../../utils.js';
 import { getGrowthStage, timeToNextStage, potEnergyCost } from '../../growth.js';
 import { FAST_TRAVEL_COST } from '/js/constants.js';
+import { drawMeeple } from '../meeple.js';
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -103,6 +104,34 @@ function _drawEnergyRow(ctx, col, y, gardener, tick, T) {
       font: regenFont, color: T.accent, align: 'left', baseline: 'middle',
     });
   }
+}
+
+// Small meeple row + count for who's physically at this location right now
+// (self + location.otherGardeners), right-aligned in the header.
+function _drawPopulationRow(ctx, col, y, gardener, otherGardeners, T) {
+  const states = [gardener.state, ...otherGardeners.map(g => g.state)];
+  const count = states.length;
+
+  const dotW = 9, dotGap = 2, maxDots = 4;
+  const shown = Math.min(count, maxDots);
+  const dotsW = shown * dotW + Math.max(0, shown - 1) * dotGap;
+
+  const countText = String(count);
+  const countFont = 'bold 11px Lora, Georgia, serif';
+  const countW = measureText(ctx, countText, countFont);
+
+  const totalW = dotsW + (shown > 0 ? 6 : 0) + countW;
+  let x = col.x + col.w - 10 - totalW;
+
+  for (let i = 0; i < shown; i++) {
+    drawMeeple(ctx, x + dotW / 2, y, states[i], dotW, dotW * 1.25);
+    x += dotW + dotGap;
+  }
+  if (shown > 0) x += 6;
+
+  drawText(ctx, countText, x, y, {
+    font: countFont, color: T.muted, align: 'left', baseline: 'middle',
+  });
 }
 
 // ── Resting: pots wheel ───────────────────────────────────────────────────────
@@ -615,6 +644,9 @@ export function renderMiddleCol(ctx, col, state, travelAnimData) {
       align: 'center',
       baseline: 'middle',
     });
+
+  // Who's here right now (self + other resting/arriving gardeners)
+  _drawPopulationRow(ctx, col, col.y + 14, gardener, state.location.otherGardeners ?? [], T);
 
   _drawEnergyRow(ctx, col, col.y + 30, gardener, tick, T);
 

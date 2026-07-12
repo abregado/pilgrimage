@@ -210,7 +210,29 @@ export function renderMapTab(ctx, bounds, state) {
       hit(cx - hitR, cy - hitR, hitR * 2, hitR * 2, 'select_map_loc', { locId: loc.id });
     }
 
-    // 4. Player marker
+    // 4. Nearby path traffic — other travelers on paths touching our current
+    // location (and, while walking, our origin + destination), extrapolated
+    // forward from their last known snapshot using their own effective speed
+    // (see docs/data-model.md — nearbyTraffic is only refreshed on broadcasts
+    // we already receive, not every tick).
+    const traffic = state.nearbyTraffic ?? [];
+    if (traffic.length > 0) {
+      const elapsed = Math.max(0, liveTick() - (state.tick ?? 0));
+      for (const t of traffic) {
+        const tp = PATH_MAP[t.pathId];
+        if (!tp) continue;
+        const fromLoc = LOCATION_MAP[t.pathFrom];
+        const destId  = t.pathFrom === tp.fromId ? tp.toId : tp.fromId;
+        const toLoc   = LOCATION_MAP[destId];
+        if (!fromLoc || !toLoc || !tp.length) continue;
+        const frac = Math.min(1, (t.progress + t.speed * elapsed) / tp.length);
+        const tx = lx(fromLoc.x + (toLoc.x - fromLoc.x) * frac);
+        const ty = ly(fromLoc.y + (toLoc.y - fromLoc.y) * frac);
+        drawCircle(ctx, tx, ty, 4, T.muted, T.bg, 1);
+      }
+    }
+
+    // 5. Player marker
     if (gardener.state === 'walking' && pathView?.pathFrom && pathView.length) {
       const fromLoc = LOCATION_MAP[pathView.pathFrom];
       const destId  = pathView.pathFrom === pathView.fromId ? pathView.toId : pathView.fromId;
@@ -239,7 +261,7 @@ export function renderMapTab(ctx, bounds, state) {
       });
     }
 
-    // 5. Selected location tooltip card
+    // 6. Selected location tooltip card
     if (selectedLocId) {
       const loc = LOCATION_MAP[selectedLocId];
       if (loc) {

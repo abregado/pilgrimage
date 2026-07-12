@@ -1,4 +1,4 @@
-import { connect, sendAction } from './network.js';
+import { connect, sendAction, startTrafficPoll } from './network.js';
 import { startClockUpdater } from './clock.js';
 import {
   getState, getTab, setTab,
@@ -49,6 +49,7 @@ async function boot() {
   // 8. Connect to server + start clock
   connect();
   startClockUpdater();
+  startTrafficPoll();
 
   // 9. First render
   invalidate();

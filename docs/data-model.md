@@ -134,6 +134,7 @@ This is what `getGardenerView(deviceId)` returns and what the client receives as
   location: LocationView|null,  // null when walking
   path: PathView|null,          // null when not walking
   arrival: ArrivalView|null,    // non-null only when state === 'arriving'
+  nearbyTraffic: [{pathId, pathFrom, progress, speed}],  // other gardeners walking on paths touching your location of interest — see below
   record: {
     wanderings: string[],
     seedLog: { [seedId]: { seed, seedling, grown, fruiting, dead } },
@@ -172,6 +173,19 @@ seedPool = origin seed + carried seed + grown/fruiting pots + seeds carried by o
   fromId, fromName, toId, toName,
   progress, pathFrom,
   encounters: [{id, seed, state}]
+}
+```
+
+### nearbyTraffic
+
+Anonymous (no id/seed) info about other gardeners currently walking on any path touching your "locations of interest": your current `locationId` while resting, or both endpoints of your current leg (origin + destination) while walking. Computed fresh in `getGardenerView` on every `state` message — there's no dedicated tick-loop broadcast for it, so it can go stale between updates; the client (`map-tab.js`) extrapolates each entry's position forward using `speed` and a periodic `poll` (`network.js: startTrafficPoll`, every 5s while the map tab is open) keeps it from drifting too far. See `docs/ws-protocol.md`.
+
+```js
+{
+  pathId: string,
+  pathFrom: string,  // which end of the path they started from (progress is measured from here)
+  progress: number,  // metres, as of this snapshot's `tick`
+  speed: number,     // that gardener's effective metres/tick — MOVEMENT_SPEED × speedBonus × (1 + completedRules×SPEED_BONUS_PER_RULE + fullVisionBonus)
 }
 ```
 

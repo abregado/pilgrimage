@@ -1,5 +1,5 @@
 import { getOrCreateDeviceId } from './utils.js';
-import { setState, getState, setConnected, updateScreenFromState, setTab,
+import { setState, getState, setConnected, updateScreenFromState, setTab, getTab,
          clearJourneyLog, setLastError,
          getPendingPickSeed, clearPendingPickSeed } from './state.js';
 import { setServerTick, liveTick } from './clock.js';
@@ -121,6 +121,22 @@ function _replayPending(baseView) {
     if (replayed) view = replayed;
   }
   return view;
+}
+
+// Keeps `nearbyTraffic` reasonably fresh while the map tab is open. The game
+// loop deliberately never broadcasts on routine movement ticks (see
+// docs/game-loop.md), so without this, other travelers' dots on the map tab
+// would only update when we happen to take an action ourselves. `poll` is a
+// no-op action that just triggers a fresh state broadcast to us.
+let _pollTimer = null;
+
+export function startTrafficPoll() {
+  if (_pollTimer !== null) return;
+  _pollTimer = setInterval(() => {
+    if (getTab() !== 'map') return;
+    if (!getState()?.gardener) return;
+    sendAction({ type: 'poll' });
+  }, 5000);
 }
 
 export function sendAction(action) {

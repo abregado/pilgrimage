@@ -50,6 +50,7 @@ Each card shows: level badge (L1/L2/L3, colored), required-seed icons, wrapped d
 
 ### Resting
 
+0. **Location name + population** — the location name label also carries a right-aligned population row (`_drawPopulationRow`): up to 4 small tinted meeples (self + `state.location.otherGardeners`, via `canvas/meeple.js`'s previously-unused `drawMeeple`/`getStateColor`) plus a bare count of everyone currently at the location.
 1. **Energy row** (`_drawEnergyRow`) — pips + `energy/energyMax` + regen countdown.
 2. **Pots wheel** (`_drawPotsWheel`) — pots arranged in a circle; each shows its growth-stage sprite, a small seed icon, and decorator dots. Selecting a pot (`select_pot`) highlights it and opens the drawer below.
 3. **Pot drawer** (`_drawPotDrawer`) — selected pot's seed name, stage badge, next-stage countdown, settling countdown, decorator count, and (while resting) action buttons: Plant (when a nursery seed is selected and the pot isn't settling), Clear (when no seed is selected and the pot has one), Decorate/Undecorate. Buttons show the energy cost inline and are visually muted when unaffordable.
@@ -74,6 +75,7 @@ Right-column tab (also reachable from the mobile swipe pages). Draws a scaled, p
 - **Visited locations**: their origin-seed icon (56px), clickable (`select_map_loc`).
 - **Adjacent-but-unvisited locations**: small hollow circle, clickable.
 - **Paths**: shown if at least one endpoint is visited; a computed route (Dijkstra, `_computeRoute`, restricted to visited+adjacent nodes) is highlighted in the accent color when a destination is selected.
+- **Nearby traffic dots**: small muted, non-interactive dots for `state.nearbyTraffic` — other gardeners currently walking on any path touching your location (or, while traveling, your origin + destination) — positioned by extrapolating `progress` forward with each entry's `speed` since the view's `tick`. See `docs/data-model.md`.
 - **Player marker**: pilgrim sprite interpolated along the current path while walking, or an accent ring + "You" label at the current location while resting.
 - **Selection tooltip card**: appears above/near the selected node — seed icon + name, visited/new badge, pot-memory dots (forward-simulated from `gardener.locationMemory` using the same growth thresholds as the live view — a pot that's since died is shown as empty, matching the server's non-clearing dead-pot behavior), and — when a route exists and the gardener can currently select (`resting` + at a location) — a "Travel → ~{eta}" button (`queue_travel`).
 

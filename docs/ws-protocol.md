@@ -40,7 +40,7 @@ All gardener-action messages also carry `seq: number` (see "Sequence numbers" ab
 | `dendriport_queue`    | `pathIds: string[]`             | Must be `resting`, `energy >= FAST_TRAVEL_COST`. Validates chain like `queue_travel`; teleports straight to the final destination in one hop. |
 | `activate_dendriport` | —                               | Must be `walking`, `energy >= FAST_TRAVEL_COST`. Instantly finishes the current leg plus any queued legs. |
 | `delete_pilgrim`      | —                               | Deletes the gardener permanently. Client confirms via `window.confirm` before sending. |
-| `poll`                | —                               | No-op; triggers a broadcast (used to force a view refresh). |
+| `poll`                | —                               | No-op; triggers a broadcast (used to force a view refresh). Sent automatically every 5s while the map tab is open, to refresh `nearbyTraffic` — see `docs/data-model.md`. |
 
 ---
 

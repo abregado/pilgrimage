@@ -23,7 +23,7 @@ client/
   css/main.css       Minimal — canvas sizing + loading screen only, no UI styling
   js/
     main.js          boot() sequence + dispatch(action, data) — the one input→action switch
-    network.js       WebSocket client, sendAction() with seq-based optimistic prediction
+    network.js       WebSocket client, sendAction() with seq-based optimistic prediction; startTrafficPoll() polls every 5s while the map tab is open to refresh nearbyTraffic
     predict.js       Client-side optimistic reducers (mirrors a subset of server/actions.js)
     render.js        renderFrame(ctx, W, H) dispatcher (connect vs location screen)
     state.js         Client state (_state, _screen, _tab, selections, embark flow, journey log)
